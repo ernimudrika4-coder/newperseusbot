@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Remix: Remix: Remix: Remix: Perseus Intelligence",
+  "description": "Advanced AI XAUUSD Trading Terminal and Technical-Fundamental Intelligence Platform with real-time TradingView charts, automated signal backtests, economic calendar, correlation analysis, and risk calculator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

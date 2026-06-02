@@ -1,0 +1,277 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;800;900&display=swap');
+
+@theme {
+  --color-main-bg: #020204;
+  --color-card-bg: #07070b;
+  --color-card-border: #13131a;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-accent-gold: #ff6a00; /* Vibrant Cyber Orange / Amber */
+  --color-accent-purple: #ffb800; /* Pure Warning Gold */
+  --color-bullish-green: #00ff66; /* Razor Mint-Green */
+  --color-bearish-red: #ff2d55; /* Surgical Crimson Red */
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Orbitron", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  body {
+    background-color: #020204;
+    color: #e2e8f0;
+    font-family: var(--font-sans);
+    background-image: 
+      radial-gradient(circle at 5% 10%, rgba(255, 106, 0, 0.04) 0%, transparent 35%),
+      radial-gradient(circle at 95% 85%, rgba(0, 255, 102, 0.02) 0%, transparent 35%),
+      radial-gradient(circle at 50% 50%, rgba(7, 7, 10, 0.5) 0%, #020204 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+}
+
+/* Tactical Cybernetic Glows & Visual Classes */
+.terminal-glowing-gold {
+  box-shadow: 0 0 25px rgba(255, 106, 0, 0.12), inset 0 0 10px rgba(255, 106, 0, 0.04);
+}
+
+.terminal-glowing-purple {
+  box-shadow: 0 0 25px rgba(255, 184, 0, 0.12), inset 0 0 10px rgba(255, 184, 0, 0.04);
+}
+
+.terminal-glowing-green {
+  box-shadow: 0 0 30px rgba(0, 255, 102, 0.15), inset 0 0 8px rgba(0, 255, 102, 0.03);
+}
+
+.terminal-glowing-red {
+  box-shadow: 0 0 30px rgba(255, 45, 85, 0.12), inset 0 0 8px rgba(255, 45, 85, 0.03);
+}
+
+.glass-morphic {
+  background: rgba(7, 7, 11, 0.88) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.7);
+}
+
+.premium-gold-edge {
+  border: 1px solid rgba(255, 106, 0, 0.15) !important;
+  box-shadow: 0 8px 30px 0 rgba(255, 106, 0, 0.02);
+}
+
+.premium-gold-edge:hover {
+  border: 1px solid rgba(255, 106, 0, 0.4) !important;
+  box-shadow: 0 12px 35px 0 rgba(255, 106, 0, 0.08);
+  transform: translateY(-2px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom 3D & Neumorphic Shadow styles */
+.shadow-3d-card {
+  box-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.6),
+              0 2px 6px -2px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.01);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.shadow-3d-card:hover {
+  transform: translateY(-3px) scale(1.005);
+  box-shadow: 0 16px 28px -5px rgba(0, 0, 0, 0.8),
+              0 8px 12px -6px rgba(0, 0, 0, 0.7),
+              inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Webpack/Grid Background effect with Tactical Amber matrix */
+.animated-matrix-grid {
+  position: relative;
+}
+
+.animated-matrix-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-size: 64px 64px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 106, 0, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 106, 0, 0.015) 1px, transparent 1px);
+  animation: grid-drag 45s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Dynamic Dot Matrix Scanner Sub-overlay */
+.dot-matrix-overlay {
+  background-size: 4px 4px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.006) 1px, transparent 1px);
+}
+
+@keyframes grid-drag {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: 64px 64px;
+  }
+}
+
+/* Slowly spinning orbits */
+@keyframes spin-slow {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-slow-reverse {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 40s linear infinite;
+}
+
+.animate-spin-slower {
+  animation: spin-slow 80s linear infinite;
+}
+
+.animate-spin-slow-reverse {
+  animation: spin-slow-reverse 45s linear infinite;
+}
+
+/* Pulse energy effects */
+@keyframes energy-pulse {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(0.99);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.01);
+  }
+}
+
+.animate-energy-pulse {
+  animation: energy-pulse 4s ease-in-out infinite;
+}
+
+/* Soft floating effect */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float-slow {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-slower {
+  animation: float 10s ease-in-out infinite;
+}
+
+/* Gold rating glow */
+.gold-rating-glow {
+  filter: drop-shadow(0 0 4px rgba(255, 106, 0, 0.5));
+}
+
+/* Holographic counter glow */
+.hologram-counter-glow {
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.4), 0 0 20px rgba(0, 255, 102, 0.1);
+}
+
+.hologram-gold-glow {
+  text-shadow: 0 0 10px rgba(255, 106, 0, 0.4), 0 0 20px rgba(255, 106, 0, 0.15);
+}
+
+/* Shine button overlay */
+.shine-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-button::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 45%,
+    rgba(255, 106, 0, 0.12) 50%,
+    transparent 55%
+  );
+  transform: rotate(45deg);
+  animation: shiny 10s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shiny {
+  0% {
+    left: -150%;
+  }
+  20%, 100% {
+    left: 150%;
+  }
+}
+
+/* Cyber Terminal Corner Decals */
+.cyber-panel-corner {
+  position: relative;
+}
+
+.cyber-panel-corner::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid #ff6a00;
+  border-left: 2px solid #ff6a00;
+  pointer-events: none;
+}
+
+.cyber-panel-corner::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid #ff6a00;
+  border-right: 2px solid #ff6a00;
+  pointer-events: none;
+}
+
+/* Seamless terminal scan line overlay */
+.terminal-scanlines {
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-scanlines::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 106, 0, 0.05), rgba(0, 255, 102, 0.02), rgba(255, 106, 0, 0.05));
+  z-index: 2;
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+  opacity: 0.45;
+}

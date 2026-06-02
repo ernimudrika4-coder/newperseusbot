@@ -1,0 +1,60 @@
+{
+  "botEnabled": true,
+  "mt5LotSize": 0.1,
+  "mt5Slippage": 3,
+  "telegramBotToken": "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w",
+  "telegramChatId": "6736752233",
+  "lastUpdateId": 0,
+  "executionLogs": [
+    {
+      "time": "2026-06-02T11:13:19.588Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal #sig-perse (INVALID) disiarkan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T11:13:18.503Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal hasil Rescan Baru (SELL) disiarkan instan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:57:35.616Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal #sig-perse (INVALID) disiarkan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:57:33.161Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal hasil Rescan Baru (SELL) disiarkan instan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:21:15.940Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal #sig-perse (INVALID) disiarkan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:21:13.170Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal hasil Rescan Baru (SELL) disiarkan instan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:13:31.353Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal #sig-perse (INVALID) disiarkan ke Telegram."
+    },
+    {
+      "time": "2026-06-02T10:13:27.880Z",
+      "type": "SYSTEM",
+      "message": "📢 Broadcaster - Sinyal hasil Rescan Baru (SELL) disiarkan instan ke Telegram."
+    },
+    {
+      "time": "2026-06-01T13:48:00.000Z",
+      "type": "SYSTEM",
+      "message": "Perseus Live MT5 Auto-Trading Bridge initialized."
+    },
+    {
+      "time": "2026-06-01T13:49:12.000Z",
+      "type": "TELEGRAM",
+      "message": "Telegram Bot polling connected. Use /stop and /run in Telegram chat to control remotely."
+    }
+  ]
+}
