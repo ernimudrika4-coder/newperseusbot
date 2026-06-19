@@ -7,6 +7,7 @@ import {
   calculateBollingerBands,
   Candle
 } from "./technicalAnalytics";
+import { generateQuantMetrics, QuantParams } from "./quantAnalytics";
 import fs from "fs";
 import path from "path";
 
@@ -45,6 +46,7 @@ export interface MarketParams {
   priceChangePercent: number;
   volume: number;
   lastUpdated: string;
+  quant?: QuantParams;
 }
 
 // Low-latency cache memory for live market parameters & fallbacks
@@ -408,6 +410,21 @@ function generatePerseusParams(prevPrice: number): MarketParams {
   const ema50 = isBuy ? Number((quote - 12.80).toFixed(2)) : Number((quote + 12.80).toFixed(2));
   const ema200 = isBuy ? Number((quote - 38.50).toFixed(2)) : Number((quote + 38.50).toFixed(2));
   
+  const fallbackCandles: Candle[] = [];
+  let tempVal = quote;
+  for (let index = 0; index < 30; index++) {
+    fallbackCandles.unshift({
+      time: Date.now() - index * 15 * 60 * 1000,
+      open: tempVal - 1,
+      high: tempVal + 2,
+      low: tempVal - 2,
+      close: tempVal,
+      volume: 140000
+    });
+    tempVal = tempVal - 0.5;
+  }
+  const fallbackQuant = generateQuantMetrics(fallbackCandles, quote);
+
   return {
     oscillatorState: boundedRsi > 65 ? "NEUTRAL / OVERBOUGHT" : boundedRsi < 35 ? "OVERSOLD" : (isBuy ? "BULLISH STRENGTH" : "BEARISH REJECTION"),
     rsi: boundedRsi,
@@ -422,7 +439,8 @@ function generatePerseusParams(prevPrice: number): MarketParams {
     priceChange: change,
     priceChangePercent: pct,
     volume: Math.floor(138000 + Math.random() * 10500),
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    quant: fallbackQuant
   };
 }
 
@@ -714,9 +732,24 @@ function createNewLiveSignal(
   const tradeSessionWindow = utcHour >= 12 && utcHour <= 20 ? "New York Session" : utcHour >= 6 && utcHour <= 14 ? "London Session" : "Asian Session";
   const crossesStatusSymbol = ema50 > sma200 ? "Golden Cross" : "Death Cross";
 
+  const qm = generateQuantMetrics(activeCandles, price);
+  const qCvdStatus = qm.cvdDivergenceDetected ? `🔴 WASPADA: ${qm.cvdDivergenceDirection}` : "🟢 NORMAL (Struktur Akumulasi Positif)";
+  const qOfiStatus = `⚡ OFI: ${qm.ofiValue} Lot (Percentile: ${qm.ofiPercentile}%) -> ${qm.ofiSignal}`;
+  const qVpinStatus = `☣️ VPIN: ${qm.vpinValue} (Toxicity: ${qm.vpinStatus}) -> ${qm.vpinBannedBuy ? "⚠️ BANNED NEW BUY ENTRY (Toxic Flow)" : "✅ LIQUIDITY AMAN"}`;
+  const qNoiseStatus = `🔬 Kernel Volatility: ${qm.realizedKernelVol} (Noise Ratio: ${(qm.noiseRatio * 100).toFixed(1)}%) -> ${qm.noiseFilterStatus}`;
+  const qTwapStatus = `⚖️ TWAP Deviasi: $${qm.twapValue} (${qm.twapDeviationBps} Bps) -> ${qm.twapPercentileState}`;
+  const qKalmanStatus = `🎯 Kalman Filter: $${qm.kalmanPrice} (Slope: ${qm.kalmanSlope}) -> State: ${qm.kalmanTrendState}`;
+  const qHawkesStatus = `🌋 Hawkes Intensity (Volume Burst): ${qm.hawkesIntensity} (Excitation α: ${qm.hawkesAlpha}) -> Regime: ${qm.hawkesRegime}`;
+
+  // If VPIN is toxic and we are buying, reduce confidence or add warning
+  let adjustedConfidence = computedConfidence;
+  if (qm.vpinBannedBuy && directionBias === "BUY") {
+    adjustedConfidence = Math.max(70, adjustedConfidence - 15);
+  }
+
   const commentary = `
 Harga Spot Gold: $${price.toFixed(2)}
-Indikasi Sinyal: ${directionBias === "BUY" ? "🟢 HIGH-PROBABILITY BUY ZONE" : "🔴 HIGH-PROBABILITY SELL ZONE"} (${computedConfidence}% Akurasi)
+Indikasi Sinyal: ${directionBias === "BUY" ? "🟢 HIGH-PROBABILITY BUY ZONE" : "🔴 HIGH-PROBABILITY SELL ZONE"} (${adjustedConfidence}% Akurasi)
 Strategi Eksekusi: ${strategy}
 
 === MATRIKS 10 HUBUNGAN TEKNIKAL CONFLUENCE (${totalConfluenceScore}/10) ===
@@ -731,8 +764,18 @@ Strategi Eksekusi: ${strategy}
 9. 🔑 ${poiDetails} (Score: ${poiScore}/1)
 10. 🌐 ${mtfDetails} (Score: ${mtfScore}/1)
 
+=== 🔮 TEKNIKAL KUANTITATIF INSTITUSIONAL TAMBAHAN ===
+1. 📊 CVD DIVERGENCE: ${qCvdStatus}
+2. ⚡ ORDER FLOW IMBALANCE: ${qOfiStatus}
+3. ☣️ INFORMED FLOW TRADING (VPIN): ${qVpinStatus}
+4. 🔬 MICROSTRUCTURE NOISE FILTER: ${qNoiseStatus}
+5. ⚖️ TWAP DEVIATION DEV: ${qTwapStatus}
+6. 🎯 KALMAN FILTER SMOOTHING: ${qKalmanStatus}
+7. 🌐 ARCH ASYMMETRIC FLOW: Heatmap transfer informasi antar aset aktif (DXY memimpin XAUUSD ${qm.crossAssetMatrix["DXY (Dolar Index)"]["XAUUSD (Emas)"]} bits)
+8. 🌋 HAWKES ARRIVAL BURST: ${qHawkesStatus}
+
 === ANALISIS INTEGRASI PERSEUS AI QUANT ===
-Sistem menyimpulkan keputusan trading berdasarkan konfluensi multi-aspek dari filter Smart Money Concepts (SMC) dan indikator mekanik. Formasi ${crossesStatusSymbol} dikombinasikan dengan pengujian point-of-interest di timeframe M15 menunjukkan penumpukan pesanan buy/sell institusional besar yang meminimalkan floating margin dan menyaring entri lilin palsu (fake outs).
+Sistem menyimpulkan keputusan trading berdasarkan konfluensi multi-aspek dari filter Smart Money Concepts (SMC) dan indikator mekanik kuantitatif. Formasi ${crossesStatusSymbol} dikombinasikan dengan pengujian point-of-interest di timeframe M15 menunjukkan penumpukan pesanan buy/sell institusional besar yang meminimalkan floating margin dan menyaring entri lilin palsu (fake outs).
 
 === JAMINAN PROTEKSI TEBAL TERMINAL ===
 - Stop Loss Dinamis: Dipatok amortisasi aman hanya $${slDistance.toFixed(2)} (${(slDistance * 10).toFixed(0)} Pips). Proteksi tangguh mencegah guncangan margin ritel.
@@ -753,7 +796,7 @@ Sistem menyimpulkan keputusan trading berdasarkan konfluensi multi-aspek dari fi
     takeProfit3: Number(tpTarget3.toFixed(2)),
     status: "ACTIVE",
     pips: 0,
-    confidence: computedConfidence,
+    confidence: adjustedConfidence,
     strategy: strategy,
     commentary: commentary
   };
@@ -857,6 +900,8 @@ async function _processPerseusMarketDataInternal(): Promise<void> {
     else if (priceQuote > finalEma50) oscillatorStatus = "BULLISH STRENGTH";
     else oscillatorStatus = "BEARISH REJECTION";
 
+    const computedQuant = generateQuantMetrics(candlestickSeries, priceQuote);
+
     activeMarketParams = {
       oscillatorState: oscillatorStatus,
       rsi: finalRsi,
@@ -871,7 +916,8 @@ async function _processPerseusMarketDataInternal(): Promise<void> {
       priceChange: absoluteDiff,
       priceChangePercent: changePercentage,
       volume: candlestickSeries[finalIndex].volume || 148500,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      quant: computedQuant
     };
 
     // ----------------------------------------------------

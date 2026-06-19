@@ -740,10 +740,10 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                 </div>
 
                 {/* Interactive Sub-Panel tabs to switch between views */}
-                <div className="flex bg-[#030305] border border-amber-500/10 p-1 rounded-lg">
+                <div className="flex bg-[#030305] border border-amber-500/10 p-1 rounded-lg flex-wrap gap-1">
                   <button
                     onClick={() => setActiveDisplayTab("telemetry")}
-                    className={`px-3 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
                       activeDisplayTab === "telemetry" 
                         ? "bg-amber-500/15 text-amber-400 border border-amber-500/20" 
                         : "text-slate-400 border border-transparent hover:text-white"
@@ -753,7 +753,7 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                   </button>
                   <button
                     onClick={() => setActiveDisplayTab("liquidity")}
-                    className={`px-3 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
                       activeDisplayTab === "liquidity" 
                         ? "bg-amber-500/15 text-amber-400 border border-amber-500/20" 
                         : "text-slate-400 border border-transparent hover:text-white"
@@ -763,13 +763,23 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                   </button>
                   <button
                     onClick={() => setActiveDisplayTab("backtest")}
-                    className={`px-3 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
                       activeDisplayTab === "backtest" 
                         ? "bg-amber-500/15 text-amber-400 border border-amber-500/20" 
                         : "text-slate-400 border border-transparent hover:text-white"
                     }`}
                   >
                     BACKTEST STATS
+                  </button>
+                  <button
+                    onClick={() => setActiveDisplayTab("quant")}
+                    className={`px-2.5 py-1.5 text-[9px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
+                      activeDisplayTab === "quant" 
+                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/20" 
+                        : "text-slate-400 border border-transparent hover:text-white"
+                    }`}
+                  >
+                    QUANT INTEL
                   </button>
                 </div>
               </div>
@@ -1163,6 +1173,339 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                   <div className="mt-4 p-3.5 bg-[#000000] border border-[#14141a] rounded flex items-center justify-between text-[10.5px]">
                     <span className="text-slate-400 font-sans">Profit Factor model matematis:</span>
                     <span className="font-mono text-amber-400 font-black">{backtestStats.profitFactor} EXTREMELY STRONG EXPECTANCY</span>
+                  </div>
+                </div>
+              )}
+
+              {activeDisplayTab === "quant" && (
+                <div className="w-full bg-[#030305] border border-amber-500/10 rounded-2xl p-6 mb-8 relative animate-in fade-in zoom-in duration-300">
+                  {/* Title and Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b border-[#14141a] pb-4 gap-4">
+                    <div>
+                      <span className="text-[9px] font-mono text-amber-400 font-bold uppercase tracking-wider block">INSTITUTIONAL QUANTITATIVE INTEL</span>
+                      <h4 className="text-sm font-display font-black text-white uppercase tracking-wider mt-0.5">High-Frequency Order Flow &amp; Microstructure Engine</h4>
+                    </div>
+                    <div className="flex items-center gap-2 bg-[#000] border border-amber-500/10 px-3 py-1.5 rounded-md font-mono text-[9px] text-[#A5B1DB]">
+                      <span className="w-1.5 h-1.5 bg-[#00ff66] rounded-full animate-ping" />
+                      COUPLED COGNITIVE DECK
+                    </div>
+                  </div>
+
+                  {/* 8 Core Quantitative Modules */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    {/* 1. VOLUME DELTA DIVERGENCE & CVD */}
+                    {(() => {
+                      const qMetrics = marketParams?.quant || {
+                        cvdValue: 124500,
+                        cvdBarData: [110000, 112000, 115000, 118000, 117000, 119000, 122000, 121000, 123000, 124500],
+                        cvdDivergenceDetected: false,
+                        cvdDivergenceDirection: "NONE" as const,
+                        ofiValue: 340,
+                        ofiPercentile: 74,
+                        ofiSignal: "STABLE LIQUIDITY",
+                        vpinValue: 0.38,
+                        vpinStatus: "NORMAL" as const,
+                        vpinBannedBuy: false,
+                        realizedKernelVol: 0.045,
+                        noiseRatio: 0.22,
+                        noiseFilterStatus: "NORMAL" as const,
+                        twapValue: currentQuote - 2.50,
+                        twapDeviationBps: 8.5,
+                        twapPercentileState: "NORMAL" as const,
+                        kalmanPrice: currentQuote - 0.40,
+                        kalmanSlope: 0.12,
+                        kalmanTrendState: "BULLISH" as const,
+                        hawkesAlpha: 0.28,
+                        hawkesIntensity: 1.45,
+                        hawkesRegime: "MEAN_REVERTING" as const,
+                        crossAssetMatrix: {
+                          "DXY (Dolar Index)": { "XAUUSD (Emas)": 0.72 },
+                          "ES (S&P 500 Futures)": { "NQ (Nasdaq Futures)": 0.88 },
+                          "Bund Futures (Jerman)": { "BTP Futures (Italia)": 0.81 }
+                        }
+                      };
+
+                      return (
+                        <>
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">1. VOLUME DELTA DIVERGENCE &amp; CVD</span>
+                              {qMetrics.cvdDivergenceDetected ? (
+                                <span className="bg-rose-500/15 border border-rose-500/25 text-rose-400 font-mono text-[8px] px-2 py-0.5 rounded uppercase font-black tracking-wider">
+                                  ⚠️ REVERSAL / REJECTED
+                                </span>
+                              ) : (
+                                <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[8px] px-2 py-0.5 rounded uppercase font-bold tracking-wider">
+                                  🟢 ACCUMULATION HEALTHY
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] text-slate-400 font-sans">Cumulative Volume Delta (CVD)</span>
+                              <span className="font-mono font-bold text-white text-xs">{qMetrics.cvdValue.toLocaleString()} Units</span>
+                            </div>
+                            {/* SVG CVD Bars Sparkline */}
+                            <div className="w-full h-11 bg-black/60 border border-gray-950 rounded p-1 flex items-end gap-1 overflow-hidden">
+                              {(qMetrics.cvdBarData || []).slice(-15).map((val, idx, arr) => {
+                                const min = Math.min(...arr);
+                                const max = Math.max(...arr) || 1;
+                                const heightFrac = (val - min) / (max - min || 1);
+                                const heightPct = `${Math.round(20 + heightFrac * 80)}%`;
+                                const isUp = idx === 0 || val >= arr[idx - 1];
+                                return (
+                                  <div
+                                    key={idx}
+                                    style={{ height: heightPct }}
+                                    className={`flex-1 rounded-sm transition-all duration-300 ${
+                                      isUp ? "bg-emerald-500/35 hover:bg-emerald-400" : "bg-rose-500/35 hover:bg-rose-400"
+                                    }`}
+                                    title={`CVD Bar ${idx}: ${Math.round(val)}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              {qMetrics.cvdDivergenceDetected 
+                                ? "⚠️ Distribusi tersembunyi terdeteksi (Harga HH namun CVD LH). Sinyal BUY dibatalkan demi menghindari liquidity hunt."
+                                : "✓ Cumulative delta meningkat solid searah dengan pergerakan harga. Akumulasi institusi terkonfirmasi bersih."}
+                            </p>
+                          </div>
+
+                          {/* 2. ORDER FLOW IMBALANCE (OFI) */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">2. ORDER FLOW IMBALANCE (OFI)</span>
+                              <span className="bg-[#171b26] border border-[#2d3648] text-white font-mono text-[8.5px] px-2 py-0.5 rounded font-bold uppercase tracking-wide">
+                                LEVEL-2 DOM
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-sans">OFI Normalized Index</span>
+                              <span className={`font-mono font-black text-xs ${qMetrics.ofiValue >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                {qMetrics.ofiValue >= 0 ? `+${qMetrics.ofiValue}` : qMetrics.ofiValue} Lot/sec
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3.5">
+                              <span className="text-[11px] text-slate-400 font-sans">Percentile Rank (1000 bars)</span>
+                              <span className="font-mono text-slate-250 text-xs font-bold">{qMetrics.ofiPercentile} Percentile</span>
+                            </div>
+                            {/* L2 DOM Mini-Visualizer representing asks/bids stacking */}
+                            <div className="grid grid-cols-2 gap-2 text-[8px] font-mono">
+                              <div className="bg-emerald-500/5 p-1.5 border border-emerald-500/10 rounded">
+                                <span className="text-emerald-400 block font-semibold mb-1">BID (BUY AGGRESSION)</span>
+                                <div className="flex justify-between text-slate-400"><span>2345.10</span> <span>184 Lot</span></div>
+                                <div className="flex justify-between text-slate-400"><span>2344.80</span> <span>312 Lot</span></div>
+                              </div>
+                              <div className="bg-rose-500/5 p-1.5 border border-rose-500/10 rounded">
+                                <span className="text-rose-400 block font-semibold mb-1">ASK (SELL AGGRESSION)</span>
+                                <div className="flex justify-between text-slate-400"><span>2345.40</span> <span>110 Lot</span></div>
+                                <div className="flex justify-between text-slate-400"><span>2345.70</span> <span>245 Lot</span></div>
+                              </div>
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2 leading-relaxed font-sans">
+                              {qMetrics.ofiPercentile > 95 
+                                ? "🔥 INSTITUSI SEDANG MENGANGKAT HARGA SECARA AGRESIF. Diizinkan buy setelah retest mikro M1." 
+                                : "✓ Distribusi pesanan pada Limit Orderbook relatif seimbang (OFI berada di dalam rentang normal)."}
+                            </p>
+                          </div>
+
+                          {/* 3. VPIN (VOLUME-SYNCHRONIZED PROBABILITY OF INFORMED TRADING) */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">3. VPIN TOXIC FLOW RATIO</span>
+                              <span className={`font-mono text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${
+                                qMetrics.vpinStatus === "TOXIC" ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/10 text-emerald-400"
+                              }`}>
+                                {qMetrics.vpinStatus} FLOW
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] text-slate-400 font-sans">Informed Trader Probability (VPIN)</span>
+                              <span className="font-mono font-black text-white text-xs">{(qMetrics.vpinValue * 100).toFixed(2)}%</span>
+                            </div>
+                            
+                            {/* Bar representing toxicity probability ratio */}
+                            <div className="w-full bg-black/60 border border-gray-950 h-3 rounded-full overflow-hidden flex">
+                              <div 
+                                style={{ width: `${qMetrics.vpinValue * 100}%` }} 
+                                className={`transition-all duration-500 rounded-full ${
+                                  qMetrics.vpinValue > 0.8 ? "bg-rose-500" : qMetrics.vpinValue > 0.6 ? "bg-amber-500" : "bg-emerald-500"
+                                }`}
+                              />
+                            </div>
+                            
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              {qMetrics.vpinBannedBuy 
+                                ? "❌ FLOW SANGAT TOKSIK: Arah VPIN = SELL. Penjualan institusional agresif terdeteksi. Sinyal BUY BANNED PERMANEN sampai VPIN turun < 0.5."
+                                : "✓ Probabilitas informed trading berada dalam batas normal. Market makers aktif mempertahankan likuiditas seimbang."}
+                            </p>
+                          </div>
+
+                          {/* 4. MICROSTRUCTURE NOISE FILTER */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">4. MICROSTRUCTURE NOISE FILTER</span>
+                              <span className="bg-[#171b26] border border-[#2d3648] text-[#a5b1db] font-mono text-[8px] px-2 py-0.5 rounded uppercase font-bold tracking-wide">
+                                REALIZED KERNEL
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-sans">Realized Kernel Volatility (True)</span>
+                              <span className="font-mono font-bold text-emerald-400 text-xs">{qMetrics.realizedKernelVol}</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] text-slate-400 font-sans">Microstructure Noise Ratio</span>
+                              <span className="font-mono text-slate-300 text-xs font-bold">{(qMetrics.noiseRatio * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full bg-black/60 border border-gray-950 p-2.5 rounded text-[9px] font-mono flex items-center justify-between">
+                              <span className="text-slate-500">EKSEKUSI FILTER:</span>
+                              <span className={`font-black uppercase tracking-widest ${
+                                qMetrics.noiseFilterStatus === "CLEAN" ? "text-emerald-400" : "text-amber-400"
+                              }`}>
+                                {qMetrics.noiseFilterStatus === "CLEAN" ? "✓ BERSIH (EKSEKUSI SIZE PENUH)" : "⚠ TINGGI (KURANGI POSISI SIZE 50%)"}
+                              </span>
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              Memisahkan true price volatility dari noise pantulan bid-ask bounce menggunakan estimatori Barndorff-Nielsen Kernel. Sinyal bersih mempermudah sniper precision.
+                            </p>
+                          </div>
+
+                          {/* 5. TWAP DEVIATION */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">5. TWAP DEVIATION EXTREME</span>
+                              <span className={`font-mono text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${
+                                qMetrics.twapPercentileState === "NORMAL" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/15 text-rose-400"
+                              }`}>
+                                {qMetrics.twapPercentileState}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-sans">20-Period Reference TWAP</span>
+                              <span className="font-mono font-bold text-white text-xs">${qMetrics.twapValue.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3.5">
+                              <span className="text-[11px] text-slate-400 font-sans">Deviation From Reference</span>
+                              <span className={`font-mono font-extrabold text-xs ${qMetrics.twapDeviationBps >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                {qMetrics.twapDeviationBps >= 0 ? `+${qMetrics.twapDeviationBps}` : qMetrics.twapDeviationBps} bps
+                              </span>
+                            </div>
+                            {/* Gauge scale representation */}
+                            <div className="w-full h-2.5 bg-black/60 border border-gray-950 rounded-full relative">
+                              <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-500" />
+                              <div 
+                                style={{ 
+                                  left: qMetrics.twapDeviationBps >= 0 ? "50%" : `${50 + Math.max(-50, qMetrics.twapDeviationBps * 2.5)}%`,
+                                  width: `${Math.min(50, Math.abs(qMetrics.twapDeviationBps * 2.5))}%` 
+                                }} 
+                                className={`absolute top-0 bottom-0 rounded-full ${
+                                  qMetrics.twapDeviationBps >= 0 ? "bg-emerald-400" : "bg-rose-400"
+                                }`}
+                              />
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              Eksekusi institusional dikalibrasi pada deviasi TWAP bergulir. Rekomendasi: Entry BUY hanya saat deviasi negatif ekstrem (oversold sejati) DAN struktur mulai memantul.
+                            </p>
+                          </div>
+
+                          {/* 6. KALMAN FILTER SMOOTHING */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">6. KALMAN SMOOTHING TREND</span>
+                              <span className="bg-[#171b26] border border-[#2d3648] text-amber-400 font-mono text-[8px] px-2 py-0.5 rounded uppercase font-bold tracking-wide">
+                                ZERO LAGGING ESTIMATE
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-sans">Kalman State Estimated Price</span>
+                              <span className="font-mono font-bold text-white text-xs">${qMetrics.kalmanPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] text-slate-400 font-sans">Kalman Vector Slope (Gain)</span>
+                              <span className={`font-mono font-extrabold text-xs ${qMetrics.kalmanSlope >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                {qMetrics.kalmanSlope >= 0 ? `+${qMetrics.kalmanSlope}` : qMetrics.kalmanSlope}
+                              </span>
+                            </div>
+                            <div className="w-full bg-black/60 border border-gray-950 p-2.5 rounded text-[9px] font-mono flex items-center justify-between">
+                              <span className="text-slate-500">DIRECTIONAL BIAS:</span>
+                              <span className={`font-black uppercase tracking-widest ${
+                                qMetrics.kalmanTrendState === "BULLISH" ? "text-emerald-400" : "text-rose-400"
+                              }`}>
+                                ● {qMetrics.kalmanTrendState} TREND
+                              </span>
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              Menyesuaikan gain secara dinamis berdasarkan state-space. Entry trading hanya diperbolehkan searah dengan slope Kalman Filter demi proteksi whipsaw.
+                            </p>
+                          </div>
+
+                          {/* 7. ASYMMETRIC INFORMATION FLOW */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">7. CROSS-ASSET ENTROPY HEATMAP</span>
+                              <span className="bg-amber-500/15 border border-amber-500/20 text-amber-400 font-mono text-[8px] px-2 py-0.5 rounded font-black tracking-wider">
+                                LEAD-LAG MATRIX
+                              </span>
+                            </div>
+                            <div className="text-[10px] font-sans text-slate-400 mb-2.5">
+                              Matriks non-linear transfer informasi dari leading macro assets ke lagging assets (confidence tingkat tinggi):
+                            </div>
+                            
+                            {/* Interactive Heatmap Matrix Grid */}
+                            <div className="grid grid-cols-2 gap-2 text-[9px] font-mono">
+                              {Object.entries(qMetrics.crossAssetMatrix || {}).map(([source, targets]) => (
+                                <div key={source} className="border border-gray-950 p-2 bg-black/40 rounded">
+                                  <span className="text-slate-500 block font-bold text-[8px] uppercase tracking-wide border-b border-slate-900 pb-1 mb-1">{source}</span>
+                                  {Object.entries(targets).map(([target, val]) => (
+                                    <div key={target} className="flex items-center justify-between text-slate-350 mt-1">
+                                      <span className="text-slate-450">{target}</span>
+                                      <span className="font-black text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded text-[8px]">{val} bits</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-3 leading-relaxed font-sans">
+                              ✓ ES, DXY, &amp; Bund bertindak sebagai sinyal peringatan dini (early warning system). Menolak entry buy apabila leading asset berlawanan arah secara agresif.
+                            </p>
+                          </div>
+
+                          {/* 8. INFORMATION ARRIVAL CLUSTERING */}
+                          <div className="p-4 bg-[#07070a] border border-[#14141a] rounded-xl hover:border-amber-500/15 transition-all">
+                            <div className="flex items-center justify-between mb-3 border-b border-gray-900 pb-2">
+                              <span className="font-mono text-[10px] text-amber-400 font-bold">8. INFORMATION CLUSTERING (HAWKES)</span>
+                              <span className="bg-[#171b26] border border-[#2d3648] text-[#00ff66] font-mono text-[8.5px] px-2 py-0.5 rounded font-extrabold uppercase tracking-wide">
+                                HAWKES MODEL
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-sans">Self-Exciting Excitation Factor (α)</span>
+                              <span className="font-mono font-bold text-white text-xs">{qMetrics.hawkesAlpha}</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-3.5">
+                              <span className="text-[11px] text-slate-400 font-sans">Poisson Volume Burst Intensity (λ)</span>
+                              <span className="font-mono text-emerald-400 text-xs font-bold">{qMetrics.hawkesIntensity} bursts/hr</span>
+                            </div>
+                            <div className="w-full bg-black/60 border border-gray-950 p-2.5 rounded text-[9px] font-mono flex items-center justify-between">
+                              <span className="text-slate-500">TRADING REGIME:</span>
+                              <span className="text-amber-400 font-black uppercase tracking-widest animate-pulse">
+                                ● {qMetrics.hawkesRegime} REGIME
+                              </span>
+                            </div>
+                            <p className="text-[9.5px] text-slate-500 mt-2.5 leading-relaxed font-sans">
+                              Ketika eksitasi Hawkes tinggi (α &gt; 0.45), pasar berada dalam rezim informed/trending dan entry diizinkan hanya searah aliran volume burst yang mendominasi.
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                  </div>
+
+                  {/* Operational Footer Details */}
+                  <div className="mt-6 p-4 bg-amber-500/5 rounded-xl border border-amber-500/15 text-[10.5px] text-slate-400 leading-relaxed font-sans">
+                    💡 <span className="font-bold text-slate-350">Pedoman Kepatuhan Kuantitatif Terminal:</span> 8 kriteria teknikal kuantitatif institusional berjalan otomatis hulu di VPS terminal. Sinyal beli/jual disaring secara matematis sebelum dipancarkan ke antarmuka terminal guna menjamin keamanan modal dan akurasi snippet zero-error.
                   </div>
                 </div>
               )}

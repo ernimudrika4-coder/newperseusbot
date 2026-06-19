@@ -18,6 +18,34 @@ export interface Signal {
   tp2Hit?: boolean;
 }
 
+export interface QuantParams {
+  cvdValue: number;
+  cvdBarData: number[];
+  cvdDivergenceDetected: boolean;
+  cvdDivergenceDirection: "BUY_REJECTED" | "SELL_REJECTED" | "NONE";
+  ofiValue: number;
+  ofiPercentile: number;
+  ofiSignal: string;
+  vpinValue: number;
+  vpinStatus: "NORMAL" | "TOXIC" | "INFORMED";
+  vpinBannedBuy: boolean;
+  realizedKernelVol: number;
+  noiseRatio: number;
+  noiseFilterStatus: "CLEAN" | "LOW_QUALITY" | "NORMAL";
+  twapValue: number;
+  twapDeviationBps: number;
+  twapPercentileState: "OVERBOUGHT" | "OVERSOLD" | "NORMAL";
+  kalmanPrice: number;
+  kalmanSlope: number;
+  kalmanTrendState: "BULLISH" | "BEARISH" | "FLAT";
+  hawkesAlpha: number;
+  hawkesIntensity: number;
+  hawkesRegime: "TRENDING" | "MEAN_REVERTING";
+  crossAssetMatrix: {
+    [source: string]: { [target: string]: number };
+  };
+}
+
 export interface MarketParams {
   oscillatorState: string;
   rsi: number;
@@ -33,6 +61,7 @@ export interface MarketParams {
   priceChangePercent: number;
   volume: number;
   lastUpdated?: string;
+  quant?: QuantParams;
 }
 
 export interface EconomicEvent {
