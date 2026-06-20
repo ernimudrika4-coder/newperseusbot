@@ -858,24 +858,24 @@ export default function App() {
             )}
           </button>
 
-          {/* Tab 4: Calculator - with PRO Badge */}
+          {/* Tab 4: MT5 Bridge - with PRO Badge */}
           <button
             onClick={() => {
-              setActiveTab("Risk Calc");
+              setActiveTab("MT5 Bridge");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className={`flex flex-col items-center justify-center py-1.5 px-2.5 text-center transition-all duration-300 relative rounded-xl hover:bg-white/5 cursor-pointer max-w-[80px] flex-1 ${
-              activeTab === "Risk Calc" ? "scale-105 text-amber-500 font-bold" : "text-slate-400"
+              activeTab === "MT5 Bridge" ? "scale-105 text-amber-500 font-bold" : "text-slate-400"
             }`}
           >
             <div className="relative">
-              <Calculator className={`w-4.5 h-4.5 sm:w-5 h-5 transition-transform duration-300 ${activeTab === "Risk Calc" ? "scale-110 text-amber-400" : "opacity-80"}`} />
+              <Cpu className={`w-4.5 h-4.5 sm:w-5 h-5 transition-transform duration-300 ${activeTab === "MT5 Bridge" ? "scale-110 text-amber-400" : "opacity-80"}`} />
               <span className="absolute -top-2.5 -right-3.5 sm:-top-3 sm:-right-4 bg-amber-500 text-[6.5px] sm:text-[7.5px] text-black font-black px-1.5 py-0.2 rounded-full border border-amber-300/60 uppercase tracking-widest shadow-[0_0_8px_rgba(245,158,11,0.3)] font-mono select-none">
                 PRO
               </span>
             </div>
-            <span className="font-mono text-[8px] sm:text-[9.5px] uppercase tracking-wider mt-1 block select-none">Kalk. Lot</span>
-            {activeTab === "Risk Calc" && (
+            <span className="font-mono text-[8.5px] sm:text-[9.5px] uppercase tracking-wider mt-1 block select-none">MT5 Bridge</span>
+            {activeTab === "MT5 Bridge" && (
               <span className="absolute bottom-0 w-5 h-[2px] bg-amber-500 rounded-full shadow-[0_0_8px_#f59e0b]" />
             )}
           </button>
