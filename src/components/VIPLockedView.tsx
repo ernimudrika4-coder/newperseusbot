@@ -42,8 +42,12 @@ export default function VIPLockedView({
 
   const handleStartVerification = (viaGroupJoin = false) => {
     if (viaGroupJoin) {
-      // Open group link in new window/tab safely
-      window.open("https://t.me/perseusnewversion", "_blank");
+      // Fallback popup if needed, but native anchor is preferred
+      try {
+        window.open("https://t.me/perseusnewversion", "_blank");
+      } catch (e) {
+        console.warn("Popup blocked, fallback to inline link anchor action.");
+      }
       if (!telegramHandle) {
         setTelegramHandle("Telegram_Member");
       }
@@ -194,18 +198,23 @@ export default function VIPLockedView({
                   onChange={(e) => setTelegramHandle(e.target.value)}
                   className="flex-1 bg-transparent px-2.5 py-3 text-xs text-white focus:outline-none font-mono"
                 />
-                <button
-                  onClick={() => {
+                <a
+                  href="https://t.me/perseusnewversion"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
                     if (telegramHandle.trim()) {
-                      handleStartVerification(true);
+                      // Trigger state change and start verification flow
+                      handleStartVerification(false);
                     } else {
+                      e.preventDefault();
                       setError("Masukkan username telegram Anda terlebih dahulu.");
                     }
                   }}
-                  className="px-4 py-3 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black font-mono text-[10px] font-bold uppercase tracking-wider border-l border-slate-800 transition-all"
+                  className="px-4 py-3 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black font-mono text-[10px] font-bold uppercase tracking-wider border-l border-slate-800 transition-all flex items-center justify-center cursor-pointer select-none"
                 >
                   CONNECT
-                </button>
+                </a>
               </div>
 
               {/* Direct Bypass Access Code Link */}
