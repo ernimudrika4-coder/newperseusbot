@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ShieldCheck, Save, Server, Loader2, Key } from "lucide-react";
 
-export default function AdminView({ currentUser }: { currentUser: any }) {
+export default function AdminView() {
   const [config, setConfig] = useState<any>(null);
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);

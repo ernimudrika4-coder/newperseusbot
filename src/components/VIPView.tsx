@@ -2,23 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import { Check, Send, Award, Users, CheckCircle, ShieldCheck, Terminal, Compass, Flame, ShieldAlert, Key, Globe, Radio, LogIn } from "lucide-react";
 import { motion } from "motion/react";
 
-export default function VIPView({ currentUser, loginWithGoogle }: { currentUser: any, loginWithGoogle: () => Promise<any> }) {
+export default function VIPView() {
   const [formData, setFormData] = useState({
-    name: currentUser?.displayName || "Trader",
-    email: currentUser?.email || "",
+    name: "Trader",
+    email: "",
     plan: "pro-ai",
     telegram: ""
   });
 
-  useEffect(() => {
-    if (currentUser) {
-      setFormData(prev => ({
-        ...prev,
-        name: currentUser.displayName || "Trader",
-        email: currentUser.email || ""
-      }));
-    }
-  }, [currentUser]);
   const [submitted, setSubmitted] = useState<boolean>(false);
 
   // 3D Card Hover States
@@ -162,21 +153,7 @@ export default function VIPView({ currentUser, loginWithGoogle }: { currentUser:
                 <Terminal className="w-4.5 h-4.5 text-orange-500 animate-pulse" /> WHITELIST SECURE UPLOAD GATE
               </h3>
 
-              {!currentUser ? (
-                <div className="flex flex-col items-center justify-center p-8 text-center bg-[#0a0a0f] border border-gray-900/60 rounded-xl h-full min-h-[300px]">
-                  <ShieldAlert className="w-12 h-12 text-slate-500 mb-4 animate-pulse" />
-                  <h4 className="font-display font-black text-white text-base mb-2 uppercase">OTENTIKASI DIBUTUHKAN</h4>
-                  <p className="text-xs text-slate-400 mb-6 max-w-sm">
-                    Silakan login menggunakan akun Google Anda untuk mengakses antrean prioritas Whitelist VIP dan mengamankan status trading Anda.
-                  </p>
-                  <button 
-                    onClick={loginWithGoogle}
-                    className="flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors"
-                  >
-                    <LogIn className="w-4 h-4" /> Sign In with Google
-                  </button>
-                </div>
-              ) : submitted ? (
+              {submitted ? (
                 <div className="p-8 text-center bg-orange-500/5 border border-orange-500/20 rounded-xl animate-in fade-in zoom-in duration-300">
                   <CheckCircle className="w-16 h-16 text-[#00ff66] mx-auto mb-4 hologram-counter-glow animate-pulse" />
                   <h4 className="font-display font-black text-[#f8fafc] text-base mb-2 uppercase tracking-wide">PERMOHONAN WHITELIST TERKONTROL!</h4>
@@ -186,7 +163,7 @@ export default function VIPView({ currentUser, loginWithGoogle }: { currentUser:
                   <button
                     onClick={() => {
                       setSubmitted(false);
-                      setFormData({ name: "Erni Mudrika", email: "ernimudrika4@gmail.com", plan: "pro-ai", telegram: "" });
+                      setFormData({ name: "Trader", email: "guest@perseus.app", plan: "pro-ai", telegram: "" });
                     }}
                     className="px-6 py-3 rounded bg-gradient-to-r from-[#0c0c10] to-[#14141a] border border-[#1c1c24] hover:border-orange-500/40 text-xs text-orange-400 font-display font-black uppercase tracking-wider transition-all cursor-pointer"
                   >
@@ -235,7 +212,7 @@ export default function VIPView({ currentUser, loginWithGoogle }: { currentUser:
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Contoh: Erni Mudrika"
+                        placeholder="Contoh: Guest User"
                         className="w-full p-3.5 bg-[#030305] border border-gray-900 focus:border-orange-500 focus:outline-none text-white text-xs font-mono rounded-lg"
                       />
                     </div>
@@ -247,7 +224,7 @@ export default function VIPView({ currentUser, loginWithGoogle }: { currentUser:
                         required
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="ernimudrika4@gmail.com"
+                        placeholder="guest@perseus.app"
                         className="w-full p-3.5 bg-[#030305] border border-gray-900 focus:border-orange-500 focus:outline-none text-white text-xs font-mono rounded-lg"
                       />
                     </div>

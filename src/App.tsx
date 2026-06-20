@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { auth, loginWithGoogle, logoutUser } from "./lib/firebase";
-import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import TapesHeader from "./components/TapesHeader";
 import HomeView from "./components/HomeView";
 import SignalsView from "./components/SignalsView";
@@ -27,15 +25,6 @@ import {
 } from "lucide-react";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
-    return () => unsubscribe();
-  }, []);
-
   const [activeTab, setActiveTab] = useState<string>("Home");
   const [activeHubView, setActiveHubView] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<boolean>(false);
@@ -587,11 +576,11 @@ export default function App() {
           <div className="p-4 bg-gradient-to-b from-white/5 to-transparent rounded-xl border border-white/5 relative overflow-hidden text-left">
             <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full blur-xl pointer-events-none" />
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-orange-500 to-yellow-600 flex items-center justify-center font-display font-black text-black shadow-lg">
-                EM
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-slate-500 to-slate-700 flex items-center justify-center font-display font-black text-black shadow-lg">
+                GU
               </div>
               <div className="flex-1 overflow-hidden">
-                <div className="font-sans font-bold text-xs text-white truncate">ernimudrika4@gmail.com</div>
+                <div className="font-sans font-bold text-xs text-white truncate">Guest User</div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="font-mono text-[8px] text-amber-500 font-extrabold tracking-wider uppercase bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/15">
@@ -961,7 +950,7 @@ export default function App() {
           <TermsOfServiceView onBack={() => setActiveTab("Home")} />
         )}
         {activeTab === "Admin" && (
-          <AdminView currentUser={currentUser} />
+          <AdminView />
         )}
         {activeTab === "Live Chart" && <LiveChartView />}
         {activeTab === "Calendar" && <CalendarView />}
@@ -976,7 +965,7 @@ export default function App() {
             <VIPLockedView featureName="Scan Sentimen AI (Gemini Flash Quantum)" onUnlock={() => setIsVipUnlocked(true)} />
           )
         )}
-        {activeTab === "VIP" && <VIPView currentUser={currentUser} loginWithGoogle={loginWithGoogle} />}
+        {activeTab === "VIP" && <VIPView />}
       </main>
 
       {/* Global premium system footer */}
@@ -1085,14 +1074,14 @@ export default function App() {
               {activeHubView === "Profile" && (
                 <div className="space-y-5 text-left">
                   <div className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-xl">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center font-bold text-black border-2 border-amber-400 font-display text-lg shadow-[0_0_20px_rgba(245,158,11,0.25)] shrink-0">
-                      EM
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-slate-500 to-slate-700 flex items-center justify-center font-bold text-black border-2 border-slate-400 font-display text-lg shadow-[0_0_20px_rgba(100,116,139,0.25)] shrink-0">
+                      GU
                     </div>
                     <div>
-                      <h4 className="font-sans font-black text-white text-xs">ernimudrika4@gmail.com</h4>
-                      <p className="text-[10px] font-mono text-gray-500 uppercase mt-0.5">Apex Whitelist Member</p>
-                      <span className="inline-block mt-2 font-mono text-[8px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase tracking-wider animate-pulse">
-                        ● SERVER VERIFIED
+                      <h4 className="font-sans font-black text-white text-xs">Guest User</h4>
+                      <p className="text-[10px] font-mono text-gray-500 uppercase mt-0.5">Local Profile</p>
+                      <span className="inline-block mt-2 font-mono text-[8px] bg-slate-500/15 border border-slate-500/30 text-slate-400 px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                        ● DEVICE VERIFIED
                       </span>
                     </div>
                   </div>
@@ -1381,7 +1370,7 @@ export default function App() {
                 <div className="space-y-4 text-left font-sans text-xs text-gray-400 leading-relaxed max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
                   <h4 className="font-black text-white text-xs uppercase font-sans mb-1">1. KERAHASIAAN INFORMASI AKUN</h4>
                   <p className="font-light text-[10.5px]">
-                    Kami berkomitmen menjaga kerahasiaan tokens whitelist, email verifikasi `ernimudrika4@gmail.com`, serta alarm preset batas harga yang Anda simpan pada penyimpanan terenkripsi browser Anda.
+                    Kami berkomitmen menjaga kerahasiaan tokens whitelist secara enkripsi, serta alarm preset batas harga yang Anda simpan pada penyimpanan terenkripsi browser Anda.
                   </p>
                   <h4 className="font-black text-white text-xs uppercase font-sans mb-1 mt-3">2. TIADA PELACAKAN COOKIES PIHAK KETIGA</h4>
                   <p className="font-light text-[10.5px]">
