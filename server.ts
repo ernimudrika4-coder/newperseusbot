@@ -4,10 +4,32 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 
 let isGeminiBlocked = false;
+
+// Basic static Auth Token for internal API protection
+const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || "perseus_secure_admin_v1";
+
+// Middleware to verify the static auth token for protected routes
+const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const token = req.headers['authorization'];
+  if (token === `Bearer ${API_SECRET_TOKEN}`) {
+    return next();
+  }
+  res.status(403).json({ success: false, error: "Unauthorized / Invalid Token" });
+};
+
+// Rate limiter for Gemini / AI scanner endpoint (Simulates Redis rate limiting constraint)
+const aiScanLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 30, // Limit each IP to 30 requests per windowMs
+  message: { success: false, error: "Tingkat rate-limit tercapai. Mohon tunggu sebelum meminta pemindaian AI lagi." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // BOT CONFIG STORES FOR MT5 AUTO-TRADE
 function getBotConfigPath(): string {
@@ -24,7 +46,7 @@ function getBotConfigPath(): string {
             botEnabled: true,
             mt5LotSize: 0.1,
             mt5Slippage: 3,
-            telegramBotToken: "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w",
+            telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
             telegramChatId: "",
             lastUpdateId: 0,
             executionLogs: []
@@ -49,51 +71,61 @@ interface BotConfig {
   executionLogs: Array<{ time: string; type: string; message: string }>;
 }
 
-function loadBotConfig(): BotConfig {
-  const configPath = getBotConfigPath();
+import { db, doc, getDoc, setDoc } from "./src/lib/firebase-server";
+
+// In-memory cache
+let cachedBotConfig: BotConfig | null = null;
+
+async function syncBotConfigFromFirestore() {
+  if (!db) return;
   try {
-    if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, "utf-8");
-      const config = JSON.parse(data);
-      // Inject environment variables as overrides for reliable Vercel persistence
-      if (process.env.TELEGRAM_BOT_TOKEN) {
-        config.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
-      }
-      if (process.env.TELEGRAM_CHAT_ID) {
-        config.telegramChatId = process.env.TELEGRAM_CHAT_ID;
-      }
-      return config;
+    const docRef = doc(db, "botConfigs", "master");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data() as BotConfig;
+      cachedBotConfig = { ...defaultConfig(), ...data };
+      if (process.env.TELEGRAM_BOT_TOKEN) cachedBotConfig!.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (process.env.TELEGRAM_CHAT_ID) cachedBotConfig!.telegramChatId = process.env.TELEGRAM_CHAT_ID;
     }
-  } catch (err) {
-    console.error("Error loading bot-config.json:", err);
+  } catch (e: any) {
+    if (e.message && e.message.includes("permission")) {
+      console.warn("Firestore rules not fully unlocked for botConfigs. Using local memory config cache.");
+    } else {
+      console.error("Error reading botConfigs from Firestore:", e);
+    }
   }
-  
-  const defaultConfig = {
+}
+
+function defaultConfig(): BotConfig {
+  return {
     botEnabled: true,
     mt5LotSize: 0.1,
     mt5Slippage: 3,
-    telegramBotToken: "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w",
-    telegramChatId: "",
+    telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
+    telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
     lastUpdateId: 0,
     executionLogs: []
   };
-  
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    defaultConfig.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+}
+
+function loadBotConfig(): BotConfig {
+  if (!cachedBotConfig) {
+    cachedBotConfig = defaultConfig();
+    syncBotConfigFromFirestore(); // trigger async load for next time
   }
-  if (process.env.TELEGRAM_CHAT_ID) {
-    defaultConfig.telegramChatId = process.env.TELEGRAM_CHAT_ID;
-  }
-  
-  return defaultConfig;
+  return cachedBotConfig;
 }
 
 function saveBotConfig(config: BotConfig) {
-  const configPath = getBotConfigPath();
-  try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error saving bot-config.json:", err);
+  cachedBotConfig = { ...config };
+  if (db) {
+    setDoc(doc(db, "botConfigs", "master"), config).catch((e: any) => {
+      if (e.message && e.message.includes("permission")) {
+        console.warn("Firestore rules not fully unlocked. Saved strictly to local memory until database setup is completed.");
+      } else {
+        console.error("Firestore save error:", e);
+      }
+    });
   }
 }
 
@@ -136,7 +168,7 @@ let serverLastHistoryCount = -1;
 const broadcastActiveSignalToTelegram = async (active: any) => {
   try {
     const config = loadBotConfig();
-    const token = config.telegramBotToken || "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w";
+    const token = config.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const chatId = config.telegramChatId;
     
     if (!token || !chatId || token.includes("MY_TELEGRAM_BOT_TOKEN") || chatId === "") {
@@ -187,7 +219,7 @@ ${active.commentary || "SMC Order Block Alignment."}
 const broadcastTp1HitToTelegram = async (active: any) => {
   try {
     const config = loadBotConfig();
-    const token = config.telegramBotToken || "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w";
+    const token = config.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const chatId = config.telegramChatId;
     
     if (!token || !chatId || token.includes("MY_TELEGRAM_BOT_TOKEN") || chatId === "") {
@@ -228,7 +260,7 @@ const broadcastTp1HitToTelegram = async (active: any) => {
 const broadcastResolvedSignalToTelegram = async (resolved: any) => {
   try {
     const config = loadBotConfig();
-    const token = config.telegramBotToken || "8824462888:AAHmyBCHwVwH_W_kgKOWZv-BCUOacdX_V1w";
+    const token = config.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN;
     const chatId = config.telegramChatId;
     
     if (!token || !chatId || token.includes("MY_TELEGRAM_BOT_TOKEN") || chatId === "") {
@@ -387,7 +419,7 @@ app.get("/api/bot-config", (req, res) => {
 });
 
 // POST to update MT5 control toggles and settings parameters
-app.post("/api/bot-config", (req, res) => {
+app.post("/api/bot-config", authenticateToken, (req: any, res: any) => {
   try {
     const prevConfig = loadBotConfig();
     const updated = { ...prevConfig, ...req.body };
@@ -602,7 +634,7 @@ if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   setInterval(pollTelegramCommands, 5500);
 }
 
-app.post("/api/signals/scan", async (req, res) => {
+app.post("/api/signals/scan", aiScanLimiter, async (req: any, res: any) => {
   try {
     const { telegramToken, telegramChatId } = req.body || {};
     

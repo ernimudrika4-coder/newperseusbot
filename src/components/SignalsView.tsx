@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import MultiTimeframeMatrix from "./MultiTimeframeMatrix";
 import InteractiveFibonacciChart from "./InteractiveFibonacciChart";
-import TelegramConfigPanel from "./TelegramConfigPanel";
+
 
 interface SignalsViewProps {
   activeSignal: Signal | null;
@@ -1934,11 +1934,7 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
               marketParams={marketParams} 
             />
 
-            {/* OPSI 2 IDE 4: Custom Telegram Bot Alerts Synchronization Panel */}
-            <TelegramConfigPanel 
-              activeSignal={activeSignal} 
-              marketParams={marketParams} 
-            />
+
 
           </div>
 

@@ -3,7 +3,7 @@ import {
   ArrowRight, Star, Check, ShieldAlert, Cpu, Zap, Activity, 
   TrendingUp, Coins, Globe, Shield, Newspaper, Users, Layers, Trophy,
   TrendingDown, Sparkles, Filter, Server, Laptop, DollarSign, ArrowUpRight,
-  Gauge, BarChart3, Clock, RefreshCw, Calculator
+  Gauge, BarChart3, Clock, RefreshCw, Calculator, ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "motion/react";
 
@@ -741,9 +741,14 @@ export default function HomeView({ onNavigate, currentXau, activeSignal, languag
           
           {/* Hero Left Content */}
           <div className="lg:col-span-6 flex flex-col items-start gap-6">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono font-bold text-[10px] tracking-widest uppercase">
-              <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-              TERMINAL INTEL XAUUSD GEN-II
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono font-bold text-[10px] tracking-widest uppercase">
+                <Sparkles className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                TERMINAL INTEL XAUUSD GEN-II
+              </div>
+              <div className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#f59e0b] border border-amber-300 text-black font-sans font-black text-[9px] tracking-widest uppercase shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                {t.earlyAccess}
+              </div>
             </div>
 
             <h1 className="text-5xl sm:text-7xl font-display font-black tracking-tight text-[#f8fafc] uppercase leading-[1.05]">
@@ -886,11 +891,76 @@ export default function HomeView({ onNavigate, currentXau, activeSignal, languag
                 <Layers className="w-5 h-5" />
               </div>
               <div className="font-sans font-black text-3xl sm:text-4xl text-white mb-1">2.8M+</div>
-              <div className="text-[10px] font-mono uppercase text-gray-400 tracking-wider font-bold">Monthly Analysis</div>
-              <p className="text-[10px] text-gray-500 mt-1">Eksekusi analisis bulanan</p>
+              <div className="text-[10px] font-mono uppercase text-gray-400 tracking-wider font-bold">{t.monthlyTitle || "Monthly Analysis"}</div>
+              <p className="text-[10px] text-gray-500 mt-1">{t.monthlySub || "Eksekusi analisis bulanan"}</p>
             </div>
 
           </div>
+        </div>
+      </section>
+
+      {/* QUICK START & TRUST LAYER (ONBOARDING) */}
+      <section className="py-20 bg-[#000103] relative z-10 border-b border-gray-900/50">
+        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-16">
+          
+          {/* Quick Start Guide */}
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 font-mono text-[9px] uppercase font-black tracking-widest mb-4">
+              <Zap className="w-3 h-3" />
+              {t.quickStart}
+            </div>
+            <h2 className="text-3xl font-sans font-black text-white uppercase tracking-tight mb-6">
+              CARA KERJA SINGKAT
+            </h2>
+            <div className="space-y-4">
+              {[
+                { step: "01", title: "Pilih Instrumen", desc: "Akses tab Sinyal dan pantau live feed XAUUSD terbaru di terminal." },
+                { step: "02", title: "Tunggu Kalkulasi AI & Bias", desc: "Skor Momentum harus > 80 atau < 20 untuk sinyal probabilitas tinggi." },
+                { step: "03", title: "Validasi Arah (Confluence)", desc: "Pastikan Order Flow sejalan dengan Support & Resistance visual." },
+                { step: "04", title: "Eksekusi Entry & Lot", desc: "Gunakan fitur Kalkulator Manajemen Risiko sebelum penempatan posisi di MT5." }
+              ].map((item, i) => (
+                <div key={i} className="flex gap-4 p-4 rounded-xl border border-[#141a29] bg-[#070a13] hover:border-amber-500/30 transition-all">
+                  <div className="w-10 h-10 rounded bg-[#0b101d] border border-[#1a2133] flex items-center justify-center font-display font-black text-amber-500 text-sm shrink-0">
+                    {item.step}
+                  </div>
+                  <div>
+                    <h4 className="font-sans font-bold text-white text-sm mb-1 uppercase">{item.title}</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed font-light">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* About & Trust (Cara Kerja & FAQ style) */}
+          <div className="flex flex-col justify-center">
+            <h2 className="text-3xl font-sans font-black text-white uppercase tracking-tight mb-6">
+              {t.aboutPerseus}
+            </h2>
+            <div className="prose prose-invert prose-sm max-w-none space-y-6 text-slate-400 font-sans font-light leading-relaxed">
+              <p>
+                Perseus System bukan alat ajaib atau bot trading tanpa pengawasan berlisensi rahasia. Sebaliknya, Perseus adalah sistem yang <strong>memproses Market Structure, Liquidity Map, Volatility Regime, dan Confluence Engine secara algoritmik otomatis</strong>.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                <div className="p-4 rounded-xl border border-slate-800 bg-[#070a16]">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 mb-2" />
+                  <h5 className="font-bold text-slate-200 text-xs mb-1 uppercase">Bukan Indikator Repaint</h5>
+                  <p className="text-[10.5px]">Level historis tidak diubah pasca-kejadian. Sinyal dikunci secara matematis di server cloud.</p>
+                </div>
+                <div className="p-4 rounded-xl border border-slate-800 bg-[#070a16]">
+                  <Server className="w-5 h-5 text-amber-400 mb-2" />
+                  <h5 className="font-bold text-slate-200 text-xs mb-1 uppercase">Transparansi Data API</h5>
+                  <p className="text-[10.5px]">Melakukan pooling Order Block dan data institusional secara langsung (API) anti delay.</p>
+                </div>
+              </div>
+              
+              <div className="mt-8 p-5 bg-orange-500/5 border border-orange-500/20 rounded-xl relative overflow-hidden">
+                <h4 className="font-sans font-bold text-orange-400 text-xs uppercase mb-2">Q: Siapa yang cocock menggunakan aplikasi ini?</h4>
+                <p className="text-[11px] text-orange-200/80">Trader Prop Firm yang mengandalkan analisis konfluensi, serta Swing dan Day Trader Retail yang lelah melihat 10 indikator usang di layar secara bersamaan.</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 

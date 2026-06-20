@@ -1,14 +1,24 @@
-import React, { useState, useRef } from "react";
-import { Check, Send, Award, Users, CheckCircle, ShieldCheck, Terminal, Compass, Flame, ShieldAlert, Key, Globe, Radio } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Check, Send, Award, Users, CheckCircle, ShieldCheck, Terminal, Compass, Flame, ShieldAlert, Key, Globe, Radio, LogIn } from "lucide-react";
 import { motion } from "motion/react";
 
-export default function VIPView() {
+export default function VIPView({ currentUser, loginWithGoogle }: { currentUser: any, loginWithGoogle: () => Promise<any> }) {
   const [formData, setFormData] = useState({
-    name: "Erni Mudrika",
-    email: "ernimudrika4@gmail.com",
+    name: currentUser?.displayName || "Trader",
+    email: currentUser?.email || "",
     plan: "pro-ai",
     telegram: ""
   });
+
+  useEffect(() => {
+    if (currentUser) {
+      setFormData(prev => ({
+        ...prev,
+        name: currentUser.displayName || "Trader",
+        email: currentUser.email || ""
+      }));
+    }
+  }, [currentUser]);
   const [submitted, setSubmitted] = useState<boolean>(false);
 
   // 3D Card Hover States
@@ -152,7 +162,21 @@ export default function VIPView() {
                 <Terminal className="w-4.5 h-4.5 text-orange-500 animate-pulse" /> WHITELIST SECURE UPLOAD GATE
               </h3>
 
-              {submitted ? (
+              {!currentUser ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center bg-[#0a0a0f] border border-gray-900/60 rounded-xl h-full min-h-[300px]">
+                  <ShieldAlert className="w-12 h-12 text-slate-500 mb-4 animate-pulse" />
+                  <h4 className="font-display font-black text-white text-base mb-2 uppercase">OTENTIKASI DIBUTUHKAN</h4>
+                  <p className="text-xs text-slate-400 mb-6 max-w-sm">
+                    Silakan login menggunakan akun Google Anda untuk mengakses antrean prioritas Whitelist VIP dan mengamankan status trading Anda.
+                  </p>
+                  <button 
+                    onClick={loginWithGoogle}
+                    className="flex items-center gap-2 px-6 py-3 rounded-lg bg-white text-black font-sans font-bold text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" /> Sign In with Google
+                  </button>
+                </div>
+              ) : submitted ? (
                 <div className="p-8 text-center bg-orange-500/5 border border-orange-500/20 rounded-xl animate-in fade-in zoom-in duration-300">
                   <CheckCircle className="w-16 h-16 text-[#00ff66] mx-auto mb-4 hologram-counter-glow animate-pulse" />
                   <h4 className="font-display font-black text-[#f8fafc] text-base mb-2 uppercase tracking-wide">PERMOHONAN WHITELIST TERKONTROL!</h4>

@@ -36,6 +36,14 @@ export interface TranslationSet {
   monthlyTitle: string;
   monthlySub: string;
 
+  // New Trust Layer & Onboarding
+  caseStudies: string;
+  quickStart: string;
+  aboutPerseus: string;
+  faq: string;
+  disclaimer: string;
+  earlyAccess: string;
+
   // Home Interactive Center (HUD)
   hudBadge: string;
   hudTitle: string;
@@ -118,6 +126,13 @@ export const translations: Record<"ID" | "EN", TranslationSet> = {
     monthlyTitle: "2.8JT+",
     monthlySub: "Eksekusi Analisis Bulanan",
 
+    caseStudies: "STUDI KASUS",
+    quickStart: "PANDUAN MULAI CEPAT",
+    aboutPerseus: "TENTANG PERSEUS",
+    faq: "FAQ",
+    disclaimer: "DISCLAIMER",
+    earlyAccess: "EARLY ACCESS BETA",
+
     hudBadge: "PUSAT INTELIJEN PASAR",
     hudTitle: "PUSAT KOMANDO INTERAKTIF PERSEUS",
     hudSub: "Simulasikan, uji, dan lihat konfluensi data pasar modal secara langsung melalui panel interaktif dwi-fungsi visual terbaik kelas institusi.",
@@ -193,6 +208,13 @@ export const translations: Record<"ID" | "EN", TranslationSet> = {
     accuracySub: "Verified Signal Accuracy",
     monthlyTitle: "2.8M+",
     monthlySub: "Monthly Analysis Batches",
+
+    caseStudies: "CASE STUDIES",
+    quickStart: "QUICK START GUIDE",
+    aboutPerseus: "ABOUT PERSEUS",
+    faq: "FAQ",
+    disclaimer: "DISCLAIMER",
+    earlyAccess: "EARLY ACCESS BETA",
 
     hudBadge: "MARKET INTELLIGENCE HUB",
     hudTitle: "PERSEUS COMMAND CENTER INTERACTIVE",

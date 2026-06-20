@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { auth, loginWithGoogle, logoutUser } from "./lib/firebase";
+import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import TapesHeader from "./components/TapesHeader";
 import HomeView from "./components/HomeView";
 import SignalsView from "./components/SignalsView";
@@ -9,6 +11,10 @@ import RiskCalcView from "./components/RiskCalcView";
 import MarketInfoView from "./components/MarketInfoView";
 import AIAnalysisView from "./components/AIAnalysisView";
 import VIPView from "./components/VIPView";
+import CaseStudyView from "./components/CaseStudyView";
+import TermsOfServiceView from "./components/TermsOfServiceView";
+import AdminView from "./components/AdminView";
+import VIPLockedView from "./components/VIPLockedView";
 import PriceAlertModal, { PriceAlert } from "./components/PriceAlertModal";
 import Mt5AutoTradeConsole from "./components/Mt5AutoTradeConsole";
 import { Signal, MarketParams } from "./types";
@@ -21,9 +27,19 @@ import {
 } from "lucide-react";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<string>("Home");
   const [activeHubView, setActiveHubView] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<boolean>(false);
+  const [isVipUnlocked, setIsVipUnlocked] = useState<boolean>(false);
 
   // Internationalization translation settings (Idea 6) and Voice speaker settings (Idea 3)
   const [language, setLanguage] = useState<"ID" | "EN">(() => {
@@ -377,6 +393,7 @@ export default function App() {
     { id: "Signals", label: t.features },
     { id: "MT5 Bridge", label: t.mt5Bridge },
     { id: "History", label: t.terminal },
+    { id: "Case Studies", label: t.caseStudies },
     { id: "Live Chart", label: t.liveChart },
     { id: "Calendar", label: t.calendar },
     { id: "Risk Calc", label: t.riskCalc },
@@ -928,10 +945,23 @@ export default function App() {
           />
         )}
         {activeTab === "MT5 Bridge" && (
-          <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
+          isVipUnlocked ? (
+            <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
+          ) : (
+            <VIPLockedView featureName="MT5 Auto-Bridge & Expert Advisor Config" onUnlock={() => setIsVipUnlocked(true)} />
+          )
         )}
         {activeTab === "History" && (
           <HistoryView signalsHistory={signalsHistory} stats={stats} language={language} />
+        )}
+        {activeTab === "Case Studies" && (
+          <CaseStudyView currentXau={currentXauPrice} />
+        )}
+        {activeTab === "Terms" && (
+          <TermsOfServiceView onBack={() => setActiveTab("Home")} />
+        )}
+        {activeTab === "Admin" && (
+          <AdminView currentUser={currentUser} />
         )}
         {activeTab === "Live Chart" && <LiveChartView />}
         {activeTab === "Calendar" && <CalendarView />}
@@ -939,8 +969,14 @@ export default function App() {
           <RiskCalcView activeSignal={activeSignal} marketParams={marketParams} language={language} />
         )}
         {activeTab === "Market Info" && <MarketInfoView currentXau={currentXauPrice} oscillatorState={marketParams?.oscillatorState || "NEUTRAL"} />}
-        {activeTab === "AI Analysis" && <AIAnalysisView marketParams={marketParams} />}
-        {activeTab === "VIP" && <VIPView />}
+        {activeTab === "AI Analysis" && (
+          isVipUnlocked ? (
+            <AIAnalysisView marketParams={marketParams} />
+          ) : (
+            <VIPLockedView featureName="Scan Sentimen AI (Gemini Flash Quantum)" onUnlock={() => setIsVipUnlocked(true)} />
+          )
+        )}
+        {activeTab === "VIP" && <VIPView currentUser={currentUser} loginWithGoogle={loginWithGoogle} />}
       </main>
 
       {/* Global premium system footer */}
@@ -952,11 +988,16 @@ export default function App() {
               P
             </div>
             <div className="text-gray-500 text-xs">
-              <span className="font-bold text-gray-300">© 2026 Perseus Intelligence Ltd.</span> All rights reserved.
+              <span className="font-bold text-gray-300 cursor-pointer" onClick={() => setActiveTab("Admin")}>© 2026 PerseusTerminal.com</span> All rights reserved.
             </div>
           </div>
 
-          <div className="flex items-center gap-6 font-mono text-[10px] text-gray-500">
+          <div className="text-[10px] text-gray-600 max-w-xl text-center md:text-right font-light leading-relaxed">
+            <strong className="text-gray-500 uppercase">Disclaimer / ToS: </strong>
+            Trading memiliki risiko tinggi. <span className="text-amber-500 cursor-pointer underline hover:text-amber-400" onClick={() => setActiveTab("Terms")}>Baca Syarat & Ketentuan Penggunaan (Terms of Service) selengkapnya di sini.</span>
+          </div>
+
+          <div className="flex flex-wrap justify-center items-center gap-6 font-mono text-[10px] text-gray-500">
             <span className="hover:text-amber-500 cursor-pointer" onClick={() => setActiveTab("VIP")}>WHITELIST PERMIT</span>
             <span className="hover:text-amber-500 cursor-pointer" onClick={() => setActiveTab("Risk Calc")}>MONEY LAWS</span>
             <span className="hover:text-amber-500 cursor-pointer" onClick={() => setActiveTab("Live Chart")}>TRADINGVIEW ORIGINAL FEED</span>
