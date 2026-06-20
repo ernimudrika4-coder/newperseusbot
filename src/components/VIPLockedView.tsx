@@ -72,7 +72,7 @@ export default function VIPLockedView({
               Dapatkan VIP Access Code dengan menghubungi admin official kami di Telegram sekarang.
             </p>
             <a 
-              href="https://t.me/pers3oF" 
+              href={`https://t.me/pers3oF?text=${encodeURIComponent("Halo Admin Perseus, saya sangat tertarik untuk mendapatkan akses Whitelist VIP Perseus V2. Bagaimana tata cara registrasi & aktivasi kode akses VIP beserta panduan setup integrasi MT5 Bridge hari ini? Terima kasih.")}`}
               target="_blank" 
               rel="noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg text-xs font-bold uppercase transition-colors"
