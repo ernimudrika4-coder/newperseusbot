@@ -28,7 +28,46 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("Home");
   const [activeHubView, setActiveHubView] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<boolean>(false);
-  const [isVipUnlocked, setIsVipUnlocked] = useState<boolean>(false);
+  const [isVipUnlocked, setIsVipUnlocked] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("perseus_vip_unlocked");
+      return saved === "true";
+    }
+    return false;
+  });
+
+  const [now, setNow] = useState<number>(Date.now());
+
+  // Auto-deactivation of 24h trial checker
+  useEffect(() => {
+    const checkExpiration = () => {
+      setNow(Date.now());
+      if (typeof window !== "undefined" && isVipUnlocked) {
+        const type = localStorage.getItem("perseus_vip_unlocked_type");
+        const time = Number(localStorage.getItem("perseus_vip_unlocked_time") || 0);
+        if (type === "temporary" && time > 0) {
+          const elapsed = Date.now() - time;
+          // 24 hours in milliseconds = 24 * 3600 * 1000
+          if (elapsed > 24 * 3600 * 1000) {
+            setIsVipUnlocked(false);
+            localStorage.removeItem("perseus_vip_unlocked");
+            localStorage.removeItem("perseus_vip_unlocked_type");
+            localStorage.removeItem("perseus_vip_unlocked_time");
+            localStorage.removeItem("perseus_vip_telegram");
+          }
+        }
+      }
+    };
+
+    checkExpiration();
+
+    const interval = setInterval(checkExpiration, 10000);
+    return () => clearInterval(interval);
+  }, [isVipUnlocked]);
+
+  useEffect(() => {
+    localStorage.setItem("perseus_vip_unlocked", String(isVipUnlocked));
+  }, [isVipUnlocked]);
 
   // Internationalization translation settings (Idea 6) and Voice speaker settings (Idea 3)
   const [language, setLanguage] = useState<"ID" | "EN">(() => {
@@ -538,6 +577,48 @@ export default function App() {
         </div>
       </header>
 
+      {/* Dynamic 24h Trial Psychological Warning Banner */}
+      {isVipUnlocked && typeof window !== "undefined" && localStorage.getItem("perseus_vip_unlocked_type") === "temporary" && (
+        <div className="w-full bg-[#0a0501]/95 border-b border-amber-500/20 py-2.5 px-4 font-mono text-[9px] sm:text-[10px] text-slate-350 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 shadow-[inset_0_1px_10px_rgba(245,158,11,0.06)] z-30">
+          <div className="absolute top-0 left-0 w-[4px] h-full bg-amber-500 animate-pulse" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-black font-black font-mono animate-pulse text-[8px] sm:text-[9px] tracking-wider uppercase">
+              <ShieldAlert className="w-3 h-3" /> TRIAL ACTIVE
+            </span>
+            <span className="font-bold text-amber-500">
+              ⚠️ UNVERIFIED GUEST ACCESS:
+            </span>
+            <span>
+              Username: <span className="text-white font-black underline">@{localStorage.getItem("perseus_vip_telegram")}</span>
+            </span>
+            <span className="text-[#BFC7E6]/80 flex items-center gap-1.5 ml-1">
+              • <span className="text-orange-400 font-bold underline">
+                {(() => {
+                  const time = Number(localStorage.getItem("perseus_vip_unlocked_time") || 0);
+                  const rem = Math.max(0, 24 * 3600 * 1000 - (Date.now() - time));
+                  const hours = Math.floor(rem / (3600 * 1000));
+                  const mins = Math.floor((rem % (3600 * 1000)) / (60 * 1000));
+                  return `${hours} Jam ${mins} Menit`;
+                })()}
+              </span> Sisa Masa Percobaan
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <span className="text-slate-500 text-[9px] text-center md:text-right font-light leading-snug">
+              "Sistem AI Perseus melakukan rekonsiliasi database anggota grup Telegram @perseusnewversion secara berkala setiap 12 jam. Jika akun Telegram Anda tidak ditemukan dalam 24 jam, lisensi Whitelist Key dinonaktifkan otomatis."
+            </span>
+            <a 
+              href="https://t.me/perseusnewversion"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1 rounded bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500 hover:text-black font-semibold uppercase tracking-wider transition-all text-[8.5px] whitespace-nowrap cursor-pointer hover:shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+            >
+              GABUNG TELEGRAM 📡
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Dimmed Backdrop overlay with slow transition fade */}
       <div 
         onClick={() => setMobileMenuOpen(false)}
@@ -925,19 +1006,33 @@ export default function App() {
           <HomeView onNavigate={(tab) => setActiveTab(tab)} currentXau={currentXauPrice} activeSignal={activeSignal} language={language} />
         )}
         {activeTab === "Signals" && (
-          <SignalsView 
-            activeSignal={activeSignal} 
-            marketParams={marketParams} 
-            onNavigate={(tab) => setActiveTab(tab)} 
-            signalsHistory={signalsHistory}
-            onReScan={handleReScan}
-          />
+          isVipUnlocked ? (
+            <SignalsView 
+              activeSignal={activeSignal} 
+              marketParams={marketParams} 
+              onNavigate={(tab) => setActiveTab(tab)} 
+              signalsHistory={signalsHistory}
+              onReScan={handleReScan}
+            />
+          ) : (
+            <VIPLockedView featureName="Sinyal Perdagangan Kuantitatif Real-time" onUnlock={() => setIsVipUnlocked(true)}>
+              <SignalsView 
+                activeSignal={activeSignal} 
+                marketParams={marketParams} 
+                onNavigate={(tab) => setActiveTab(tab)} 
+                signalsHistory={signalsHistory}
+                onReScan={handleReScan}
+              />
+            </VIPLockedView>
+          )
         )}
         {activeTab === "MT5 Bridge" && (
           isVipUnlocked ? (
             <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
           ) : (
-            <VIPLockedView featureName="MT5 Auto-Bridge & Expert Advisor Config" onUnlock={() => setIsVipUnlocked(true)} />
+            <VIPLockedView featureName="MT5 Auto-Bridge & Expert Advisor Config" onUnlock={() => setIsVipUnlocked(true)}>
+              <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
+            </VIPLockedView>
           )
         )}
         {activeTab === "History" && (
@@ -962,7 +1057,9 @@ export default function App() {
           isVipUnlocked ? (
             <AIAnalysisView marketParams={marketParams} />
           ) : (
-            <VIPLockedView featureName="Scan Sentimen AI (Gemini Flash Quantum)" onUnlock={() => setIsVipUnlocked(true)} />
+            <VIPLockedView featureName="Scan Sentimen AI (Gemini Flash Quantum)" onUnlock={() => setIsVipUnlocked(true)}>
+              <AIAnalysisView marketParams={marketParams} />
+            </VIPLockedView>
           )
         )}
         {activeTab === "VIP" && <VIPView />}
