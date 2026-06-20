@@ -36,6 +36,14 @@ export default function App() {
     return false;
   });
 
+  const [isMt5Unlocked, setIsMt5Unlocked] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("perseus_mt5_unlocked");
+      return saved === "true";
+    }
+    return false;
+  });
+
   const [now, setNow] = useState<number>(Date.now());
 
   // Auto-deactivation of 24h trial checker
@@ -68,6 +76,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("perseus_vip_unlocked", String(isVipUnlocked));
   }, [isVipUnlocked]);
+
+  useEffect(() => {
+    localStorage.setItem("perseus_mt5_unlocked", String(isMt5Unlocked));
+  }, [isMt5Unlocked]);
 
   // Internationalization translation settings (Idea 6) and Voice speaker settings (Idea 3)
   const [language, setLanguage] = useState<"ID" | "EN">(() => {
@@ -1027,10 +1039,10 @@ export default function App() {
           )
         )}
         {activeTab === "MT5 Bridge" && (
-          isVipUnlocked ? (
+          isMt5Unlocked ? (
             <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
           ) : (
-            <VIPLockedView featureName="MT5 Auto-Bridge & Expert Advisor Config" onUnlock={() => setIsVipUnlocked(true)}>
+            <VIPLockedView featureName="MT5 Auto-Bridge & Expert Advisor Config" onUnlock={() => setIsMt5Unlocked(true)} isAdminOnly={true}>
               <Mt5AutoTradeConsole activeSignal={activeSignal} marketParams={marketParams} />
             </VIPLockedView>
           )

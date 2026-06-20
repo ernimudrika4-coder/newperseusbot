@@ -4,23 +4,25 @@ import { Lock, Key, Send, ShieldAlert, Users, Sparkles, MessageSquare, Check, Cp
 export default function VIPLockedView({ 
   featureName, 
   onUnlock,
-  children
+  children,
+  isAdminOnly = false
 }: { 
   featureName: string; 
   onUnlock: () => void; 
   children?: React.ReactNode;
+  isAdminOnly?: boolean;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [telegramHandle, setTelegramHandle] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStep, setVerificationStep] = useState(0);
-  const [showDirectKeyInput, setShowDirectKeyInput] = useState(false);
+  const [showDirectKeyInput, setShowDirectKeyInput] = useState(isAdminOnly);
 
   // Simulated professional cryptographic verification steps
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isVerifying) {
+    if (isVerifying && !isAdminOnly) {
       if (verificationStep < 4) {
         timer = setTimeout(() => {
           setVerificationStep((prev) => prev + 1);
@@ -38,9 +40,10 @@ export default function VIPLockedView({
       }
     }
     return () => clearTimeout(timer);
-  }, [isVerifying, verificationStep, onUnlock, telegramHandle]);
+  }, [isVerifying, verificationStep, onUnlock, telegramHandle, isAdminOnly]);
 
   const handleStartVerification = (viaGroupJoin = false) => {
+    if (isAdminOnly) return;
     if (viaGroupJoin) {
       // Fallback popup if needed, but native anchor is preferred
       try {
@@ -59,16 +62,27 @@ export default function VIPLockedView({
   };
 
   const handleKeyUnlock = () => {
-    if (code.trim().toUpperCase() === "PERS3OF-VIP") {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("perseus_vip_unlocked", "true");
-        localStorage.setItem("perseus_vip_unlocked_type", "permanent");
-        localStorage.setItem("perseus_vip_unlocked_time", String(Date.now()));
-        localStorage.setItem("perseus_vip_telegram", "LIFETIME_HOLDER");
+    if (isAdminOnly) {
+      if (code.trim().toUpperCase() === "PERS3OF-ADMIN-MT5") {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("perseus_mt5_unlocked", "true");
+        }
+        onUnlock();
+      } else {
+        setError("Kode akses Admin MT5 tidak valid. Silakan hubungi Developer.");
       }
-      onUnlock();
     } else {
-      setError("Kode akses tidak valid. Silakan periksa kembali.");
+      if (code.trim().toUpperCase() === "PERS3OF-VIP") {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("perseus_vip_unlocked", "true");
+          localStorage.setItem("perseus_vip_unlocked_type", "permanent");
+          localStorage.setItem("perseus_vip_unlocked_time", String(Date.now()));
+          localStorage.setItem("perseus_vip_telegram", "LIFETIME_HOLDER");
+        }
+        onUnlock();
+      } else {
+        setError("Kode akses tidak valid. Silakan periksa kembali.");
+      }
     }
   };
 
@@ -116,30 +130,38 @@ export default function VIPLockedView({
           {/* Badge & Locks top */}
           <div className="flex justify-between items-center mb-6">
             <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest bg-[#0a0602] border border-amber-500/15 px-3 py-1 rounded-full select-none">
-              ● PROMPT: PERSEUS TERMINAL PROTOCOL
+              ● PROMPT: {isAdminOnly ? "PERSEUS ADMIN ENCLAVE" : "PERSEUS TERMINAL PROTOCOL"}
             </span>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[9px] font-black tracking-wider animate-pulse select-none">
-              STATUS: UNALIGNED
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[9px] font-black tracking-wider animate-pulse select-none ${
+              isAdminOnly ? "bg-rose-500/10 border border-rose-500/30 text-rose-400" : "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+            }`}>
+              STATUS: {isAdminOnly ? "ADMIN_ONLY" : "UNALIGNED"}
             </div>
           </div>
 
-          <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-500/15 to-transparent border border-amber-500/30 flex items-center justify-center mb-5 animate-pulse">
-            <Lock className="w-7 h-7 text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+          <div className={`mx-auto w-16 h-16 rounded-full border flex items-center justify-center mb-5 animate-pulse ${
+            isAdminOnly ? "bg-gradient-to-b from-rose-500/15 to-transparent border-rose-500/30" : "bg-gradient-to-b from-amber-500/15 to-transparent border-amber-500/30"
+          }`}>
+            <Lock className={`w-7 h-7 drop-shadow-md ${isAdminOnly ? "text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]" : "text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]"}`} />
           </div>
 
           <h2 className="text-xl sm:text-2xl font-display font-black text-white uppercase tracking-wider mb-2">
-            COMMUNITY WHITELIST REQUIRED
+            {isAdminOnly ? "ADMIN LICENSE REQUIRED" : "COMMUNITY WHITELIST REQUIRED"}
           </h2>
           
-          <h3 className="text-xs font-mono font-bold text-amber-400 uppercase tracking-widest mb-4">
+          <h3 className={`text-xs font-mono font-bold uppercase tracking-widest mb-4 ${isAdminOnly ? "text-rose-400" : "text-amber-400"}`}>
             Fitur Terkunci: {featureName}
           </h3>
 
           <p className="text-xs sm:text-[13px] text-slate-300 mb-8 max-w-md mx-auto leading-relaxed font-light">
-            "Akses terminal kuantitatif presisi Perseus V2 saat ini terkunci. Bergabunglah dengan Komunitas Telegram Eksklusif kami hari ini untuk membuka kunci (unlock) seluruh fitur seumur hidup secara 100% gratis."
+            {isAdminOnly ? (
+              `"Akses sistem Auto-Bridge MT5 kuantitatif presisi Perseus V2 dikunci secara eksklusif untuk Admin & Pengembang Resmi. Hubungi Developer untuk mendapatkan Kode Lisensi Whitelist Admin khusus Anda."`
+            ) : (
+              `"Akses terminal kuantitatif presisi Perseus V2 saat ini terkunci. Bergabunglah dengan Komunitas Telegram Eksklusif kami hari ini untuk membuka kunci (unlock) seluruh fitur seumur hidup secara 100% gratis."`
+            )}
           </p>
 
-          {isVerifying ? (
+          {isVerifying && !isAdminOnly ? (
             /* Elegant high-tech verification pipeline spinner */
             <div className="py-6 px-4 bg-[#05060a] border border-amber-500/10 rounded-xl max-w-sm mx-auto animate-pulse flex flex-col items-center">
               <Cpu className="w-10 h-10 text-amber-400 animate-spin mb-4" />
@@ -159,87 +181,93 @@ export default function VIPLockedView({
           ) : (
             <div className="w-full max-w-md mx-auto space-y-5">
               
-              {/* Option A: Telegram Group Action (Recommended) */}
-              <div className="space-y-3">
-                <a 
-                  href="https://t.me/perseusnewversion"
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => handleStartVerification(false)}
-                  className="w-full py-4 rounded-xl font-mono text-xs font-black uppercase tracking-widest bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-black hover:from-amber-400 hover:to-amber-500 transition-all duration-300 flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(245,158,11,0.25)] select-none cursor-pointer"
-                >
-                  <Send className="w-4 h-4 fill-black" />
-                  <span>GABUNG TELEGRAM & UNLOCK GRATIS ⚡</span>
-                </a>
-                <div className="text-[10px] text-gray-400 font-mono flex items-center justify-center gap-1.5 font-light">
-                  <span>Sistem memverifikasi keanggotaan grup secara otomatis</span>
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                </div>
-              </div>
+              {!isAdminOnly && (
+                <>
+                  {/* Option A: Telegram Group Action (Recommended) */}
+                  <div className="space-y-3">
+                    <a 
+                      href="https://t.me/perseusnewversion"
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => handleStartVerification(false)}
+                      className="w-full py-4 rounded-xl font-mono text-xs font-black uppercase tracking-widest bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 text-black hover:from-amber-400 hover:to-amber-500 transition-all duration-300 flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(245,158,11,0.25)] select-none cursor-pointer"
+                    >
+                      <Send className="w-4 h-4 fill-black" />
+                      <span>GABUNG TELEGRAM & UNLOCK GRATIS ⚡</span>
+                    </a>
+                    <div className="text-[10px] text-gray-400 font-mono flex items-center justify-center gap-1.5 font-light">
+                      <span>Sistem memverifikasi keanggotaan grup secara otomatis</span>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    </div>
+                  </div>
 
-              <div className="relative py-2 select-none">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800/80"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase tracking-wider font-mono">
-                  <span className="bg-[#050608] px-3.5 text-gray-500 font-bold">Atau Masukkan Username</span>
-                </div>
-              </div>
+                  <div className="relative py-2 select-none">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-800/80"></div>
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase tracking-wider font-mono">
+                      <span className="bg-[#050608] px-3.5 text-gray-500 font-bold">Atau Masukkan Username</span>
+                    </div>
+                  </div>
 
-              {/* Option B: Telegram Input Verification for Elite Feel */}
-              <div className="flex bg-[#0b101d] border border-slate-800 rounded-xl overflow-hidden focus-within:border-amber-500/40 transition-colors">
-                <div className="pl-4 flex items-center justify-center text-slate-500 font-mono text-[13px] font-bold select-none">
-                  @
-                </div>
-                <input 
-                  type="text"
-                  placeholder="Username_Telegram_Anda"
-                  value={telegramHandle}
-                  onChange={(e) => setTelegramHandle(e.target.value)}
-                  className="flex-1 bg-transparent px-2.5 py-3 text-xs text-white focus:outline-none font-mono"
-                />
-                <a
-                  href="https://t.me/perseusnewversion"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    if (telegramHandle.trim()) {
-                      // Trigger state change and start verification flow
-                      handleStartVerification(false);
-                    } else {
-                      e.preventDefault();
-                      setError("Masukkan username telegram Anda terlebih dahulu.");
-                    }
-                  }}
-                  className="px-4 py-3 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black font-mono text-[10px] font-bold uppercase tracking-wider border-l border-slate-800 transition-all flex items-center justify-center cursor-pointer select-none"
-                >
-                  CONNECT
-                </a>
-              </div>
+                  {/* Option B: Telegram Input Verification for Elite Feel */}
+                  <div className="flex bg-[#0b101d] border border-slate-800 rounded-xl overflow-hidden focus-within:border-amber-500/40 transition-colors">
+                    <div className="pl-4 flex items-center justify-center text-slate-500 font-mono text-[13px] font-bold select-none">
+                      @
+                    </div>
+                    <input 
+                      type="text"
+                      placeholder="Username_Telegram_Anda"
+                      value={telegramHandle}
+                      onChange={(e) => setTelegramHandle(e.target.value)}
+                      className="flex-1 bg-transparent px-2.5 py-3 text-xs text-white focus:outline-none font-mono"
+                    />
+                    <a
+                      href="https://t.me/perseusnewversion"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (telegramHandle.trim()) {
+                          // Trigger state change and start verification flow
+                          handleStartVerification(false);
+                        } else {
+                          e.preventDefault();
+                          setError("Masukkan username telegram Anda terlebih dahulu.");
+                        }
+                      }}
+                      className="px-4 py-3 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black font-mono text-[10px] font-bold uppercase tracking-wider border-l border-slate-800 transition-all flex items-center justify-center cursor-pointer select-none"
+                    >
+                      CONNECT
+                    </a>
+                  </div>
+                </>
+              )}
 
               {/* Direct Bypass Access Code Link */}
               <div className="text-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowDirectKeyInput(!showDirectKeyInput)}
-                  className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 hover:text-amber-400 transition-colors cursor-pointer select-none"
-                >
-                  {showDirectKeyInput ? hideKeyLabel() : showKeyLabel()}
-                </button>
+                {!isAdminOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDirectKeyInput(!showDirectKeyInput)}
+                    className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 hover:text-amber-400 transition-colors cursor-pointer select-none"
+                  >
+                    {showDirectKeyInput ? hideKeyLabel() : showKeyLabel()}
+                  </button>
+                )}
 
-                {showDirectKeyInput && (
+                {(showDirectKeyInput || isAdminOnly) && (
                   <div className="mt-4 p-4 border border-slate-900 bg-[#040608]/90 rounded-xl text-left animate-in slide-in-from-top-3 duration-300">
                     <label className="block text-[9px] font-bold text-slate-500 uppercase font-mono mb-2">
-                      Masukkan Whitelist Access Code
+                      {isAdminOnly ? "Masukkan Admin MT5 Access Code" : "Masukkan Whitelist Access Code"}
                     </label>
                     <div className="flex gap-2">
-                      <div className="flex flex-1 bg-[#090d16] border border-slate-800 rounded-lg overflow-hidden">
+                      <div className={`flex flex-1 bg-[#090d16] border rounded-lg overflow-hidden ${isAdminOnly ? "border-rose-500/20 focus-within:border-rose-500/40" : "border-slate-800 focus-within:border-amber-500/40"}`}>
                         <div className="pl-3 flex items-center justify-center text-slate-500">
-                          <Key className="w-3.5 h-3.5" />
+                          <Key className="w-3.5 h-3.5 animate-pulse text-amber-500" />
                         </div>
                         <input 
                           type="password"
-                          placeholder="PERSEUS-XXXX-VIP"
+                          placeholder={isAdminOnly ? "PERS3OF-ADMIN-XXXX" : "PERSEUS-XXXX-VIP"}
                           value={code}
                           onChange={(e) => {
                             setCode(e.target.value);
@@ -250,7 +278,9 @@ export default function VIPLockedView({
                       </div>
                       <button 
                         onClick={handleKeyUnlock}
-                        className="px-3 rounded-lg font-mono font-bold text-[10.5px] uppercase bg-slate-800 text-white hover:bg-amber-500 hover:text-black transition-colors"
+                        className={`px-4 rounded-lg font-mono font-black text-[10.5px] uppercase transition-colors ${
+                          isAdminOnly ? "bg-rose-600 hover:bg-rose-500 text-white" : "bg-slate-800 text-white hover:bg-amber-500 hover:text-black"
+                        }`}
                       >
                         SUBMIT
                       </button>
@@ -270,7 +300,7 @@ export default function VIPLockedView({
 
           {/* Secure disclaimer brand bar */}
           <div className="mt-8 pt-4 border-t border-slate-900 flex items-center justify-between text-[9px] text-[#5c6e8e] font-mono">
-            <span>PLATFORM: PERSEUS CORP V2</span>
+            <span>PLATFORM: {isAdminOnly ? "PERSEUS ADM SECV2" : "PERSEUS CORP V2"}</span>
             <span>SHIELD ENFORCED</span>
           </div>
 
