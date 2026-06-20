@@ -688,6 +688,37 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
       
       <div className="max-w-7xl mx-auto px-4 py-8 relative z-10">
 
+        {/* Info Banner: Cara Mendapatkan Sinyal Baru */}
+        <div className="w-full bg-[#0a0602] border border-amber-500/25 p-4 sm:p-5 rounded-xl mb-6 relative overflow-hidden shadow-[0_4px_30px_rgba(245,158,11,0.05)] animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute top-0 left-0 h-full w-[3px] bg-amber-500" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex gap-3 items-start sm:items-center">
+              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-xs font-mono font-black tracking-widest text-amber-400 uppercase">PEMBERITAHUAN SISTEM / SYSTEM NOTICE</h3>
+                <p className="text-[11.5px] text-slate-300 mt-1 leading-relaxed">
+                  Untuk melakukan pembaruan matriks real-time dan mendapatkan sinyal perdagangan terbaru, silakan klik tombol <span className="text-amber-400 font-bold font-mono px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-xs">RE-SCAN</span> di sebelah kanan indikator Live Price.
+                </p>
+                <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono italic">
+                  To refresh the real-time matrix and generate the latest trading signals, please click <span className="text-amber-400">RE-SCAN</span> next to the live price.
+                </div>
+              </div>
+            </div>
+            {/* Quick Action Button */}
+            <button
+              onClick={triggerScanWithSequence}
+              disabled={isScanning}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-mono font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 select-none shadow-[0_0_15px_rgba(245,158,11,0.25)] shrink-0 w-full sm:w-auto justify-center"
+            >
+              <Cpu className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+              {isScanning ? "SCANNING..." : "SCAN NOW"}
+            </button>
+          </div>
+        </div>
+
         {/* Top Scan Status ticker (Gilded) */}
         <div className="w-full bg-[#050508]/90 border border-amber-500/15 p-4 rounded-xl mb-8 flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-xs shadow-[0_10px_35px_rgba(0,0,0,0.6)] relative overflow-hidden">
           <div className="absolute top-0 left-0 w-2/5 h-[1.5px] bg-gradient-to-r from-transparent via-amber-500 to-transparent animate-pulse" />
