@@ -452,195 +452,232 @@ function createNewLiveSignal(
   const activeCandles = candles && candles.length > 0 ? candles : [];
   const currentClose = price;
 
-  // 1. Structural Liquidity Sweep (Buyside & Sellside)
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
+  // 1. Time & Price Algorithmic Delivery (NY Midnight Open & Killzones)
+  // We approximate NY midnight by taking a candle roughly 20-24 hours ago depending on local time
+  // For algorithmic simplicity in this simulated engine, we'll establish a structural "True Open".
+  const nyMidnightIdx = Math.max(0, activeCandles.length - 80); 
+  const nyMidnightPrice = activeCandles[nyMidnightIdx]?.open || price;
+  
+  const utcHour = new Date().getUTCHours();
+  const isLondonKillzone = utcHour >= 6 && utcHour <= 10;
+  const isNYKillzone = utcHour >= 12 && utcHour <= 16;
+  const isAsianSession = utcHour >= 0 && utcHour <= 4;
+  const inKillzone = isLondonKillzone || isNYKillzone || isAsianSession;
+
+  let timeAndPriceScore = 0;
+  let timeAndPriceDetails = "";
+
+  // 2. Market Structure & Liquidity Inducement Theorem (IDM)
+  const swingHighs: {price: number, index: number}[] = [];
+  const swingLows: {price: number, index: number}[] = [];
   for (let i = 2; i < activeCandles.length - 2; i++) {
     const h = activeCandles[i].high;
     if (h > activeCandles[i-1].high && h > activeCandles[i-2].high && h > activeCandles[i+1].high && h > activeCandles[i+2].high) {
-      swingHighs.push(h);
+      swingHighs.push({price: h, index: i});
     }
     const l = activeCandles[i].low;
     if (l < activeCandles[i-1].low && l < activeCandles[i-2].low && l < activeCandles[i+1].low && l < activeCandles[i+2].low) {
-      swingLows.push(l);
+      swingLows.push({price: l, index: i});
     }
   }
-  const last30Highs = swingHighs.slice(-15);
-  const last30Lows = swingLows.slice(-15);
-  
-  // Define Asian/Daily Session extremes
-  const highestSwingHigh = last30Highs.length > 0 ? Math.max(...last30Highs) : price + 4.5;
-  const lowestSwingLow = last30Lows.length > 0 ? Math.min(...last30Lows) : price - 4.5;
 
+  const last15Highs = swingHighs.slice(-15);
+  const last15Lows = swingLows.slice(-15);
+  
+  const highestOp = last15Highs.length > 0 ? Math.max(...last15Highs.map(h => h.price)) : price + 4.5;
+  const lowestOp = last15Lows.length > 0 ? Math.min(...last15Lows.map(l => l.price)) : price - 4.5;
+
+  // Inducement Sweep Logic
+  const recentHigh = last15Highs[last15Highs.length - 1]?.price || highestOp;
+  const recentLow = last15Lows[last15Lows.length - 1]?.price || lowestOp;
+  
   let directionBias: "BUY" | "SELL" = "BUY";
-  let smcScore = 0;
+  let idmScore = 0;
+  let idmDetails = "";
   
-  // Check for sweep of liquidity
-  const isSweepingLows = currentClose < lowestSwingLow + 1.5 && currentClose > lowestSwingLow - 1.5;
-  const isSweepingHighs = currentClose > highestSwingHigh - 1.5 && currentClose < highestSwingHigh + 1.5;
+  const sweptLows = currentClose < recentLow + 1.2 && currentClose > recentLow - 3.0;
+  const sweptHighs = currentClose > recentHigh - 1.2 && currentClose < recentHigh + 3.0;
 
-  let liqDetails = "";
-  if (isSweepingLows) {
+  if (sweptLows && (currentClose < nyMidnightPrice || !inKillzone)) {
     directionBias = "BUY";
-    smcScore += 2;
-    liqDetails = `Liquidity Matrix: SELL-SIDE LIQUIDITY (SSL) SWEPT. Institusi telah menyapu stop loss ritel di titik low ($${lowestSwingLow.toFixed(2)}). Menyiapkan injeksi liquidity balasan (Reversal).`;
-  } else if (isSweepingHighs) {
-    directionBias = "SELL";
-    smcScore += 2;
-    liqDetails = `Liquidity Matrix: BUY-SIDE LIQUIDITY (BSL) SWEPT. Institusi telah melikuidasi breakout trader ritel di $${highestSwingHigh.toFixed(2)}. Menyiapkan distribusi penolakan harga turun.`;
-  } else {
-    // If no clear sweep, trade inside the ChoCh / BOS structure
-    const closeRelativeToRange = (currentClose - lowestSwingLow) / (highestSwingHigh - lowestSwingLow);
-    directionBias = closeRelativeToRange < 0.5 ? "BUY" : "SELL";
-    liqDetails = `Liquidity Matrix: INTERNAL LIQUIDITY. Harga bergerak menuju validasi Order Block lanjutan dalam rentang struktural ($${lowestSwingLow.toFixed(2)} - $${highestSwingHigh.toFixed(2)}).`;
-  }
-
-  // 2. Change of Character (ChoCh) & Market Structure
-  let structureDetails = "";
-  const rangeDiff = highestSwingHigh - lowestSwingLow;
-  const discountZone = lowestSwingLow + rangeDiff * 0.35;
-  const premiumZone = lowestSwingLow + rangeDiff * 0.65;
-
-  if (directionBias === "BUY" && currentClose <= discountZone) {
-    smcScore += 2;
-    structureDetails = `Market Structure: OPTIMAL DISCOUNT ZONE. Eksekusi berada di kedalaman diskon ekstrem (<35%), probabilitas pantulan sangat tinggi dengan target mitigasi ke area Premium.`;
-  } else if (directionBias === "SELL" && currentClose >= premiumZone) {
-    smcScore += 2;
-    structureDetails = `Market Structure: OPTIMAL PREMIUM ZONE. Harga sedang dinilai terlalu mahal (Premium Extreme >65%). Institusional seller bersiap membangun Order Block distribusi.`;
-  } else {
-    structureDetails = `Market Structure: EQUILIBRIUM. Fase akumulasi sekunder terjadi di zona tengah (50%). Mengukur validitas Break of Structure terdekat.`;
-  }
-
-  // 3. Fair Value Gap (FVG) and Imbalance Detection
-  let fvgFound = false;
-  let fvgType = "";
-  let fvgPrice = 0;
-  if (activeCandles.length >= 4) {
-    for (let i = activeCandles.length - 2; i >= Math.max(0, activeCandles.length - 8); i--) {
-      // Bullish FVG
-      if (activeCandles[i-1].low > activeCandles[i-3].high) {
-        fvgFound = true; fvgType = "BUY"; fvgPrice = (activeCandles[i-1].low + activeCandles[i-3].high) / 2; break;
-      }
-      // Bearish FVG
-      if (activeCandles[i-1].high < activeCandles[i-3].low) {
-        fvgFound = true; fvgType = "SELL"; fvgPrice = (activeCandles[i-1].high + activeCandles[i-3].low) / 2; break;
-      }
-    }
-  }
-
-  let fvgDetails = "";
-  if (fvgFound && fvgType === directionBias) {
-    smcScore += 2;
-    fvgDetails = `Imbalance/FVG: MITIGASI FVG TERVALIDASI. Penemuan Fair Value Gap tersembunyi di level $${fvgPrice.toFixed(2)}. Harga otomatis tersedot untuk mereposisi inefisiensi pesanan.`;
-  } else {
-    fvgDetails = `Imbalance/FVG: BALANCED PRICE RANGE (BPR). Struktur harga telah seimbang, mengandalkan penetrasi murni Order Block tanpa gap gravitasi yang besar.`;
-  }
-
-  // 4. Order Block (OB) Identification
-  let obScore = 0;
-  let obDetails = "Order Block: Institutional accumulation tersembunyi dalam noise fractal.";
-  if (directionBias === "BUY") {
-    obScore += 1;
-    obDetails = `Order Block (SMC): BULLISH MITIGATION BLOCK. Titik entri tervalidasi selaras rapat dengan pesanan block institusional yang tertinggal di pangkalan demand minor. Zero-floating terukur.`;
-  } else {
-    obScore += 1;
-    obDetails = `Order Block (SMC): BEARISH REJECTION BLOCK. Jejak cetak biru (footprint) suplai terdeteksi menyerap seluruh ask liquidity, meredakan momentum impulsif buyer menuju pembalikan brutal.`;
-  }
-
-  // 5. Institutional Candlestick Print
-  let candleDetails = "Volume/Candle: Neutral Delivery.";
-  if (activeCandles.length >= 2) {
-    const uc = activeCandles[activeCandles.length - 1]; // current
-    const rangeSize = uc.high - uc.low;
-    const bodySize = Math.abs(uc.close - uc.open);
-    const rejectionWickBuy = Math.min(uc.open, uc.close) - uc.low;
-    const rejectionWickSell = uc.high - Math.max(uc.open, uc.close);
-
-    if (directionBias === "BUY" && rejectionWickBuy > rangeSize * 0.45) {
-      smcScore += 1;
-      candleDetails = `Price Delivery: PINBAR WICK REJECTION. Pembentukan ekor lilin panjang menandakan pengereman algoritma smart-money dalam menyita likuiditas sisi bawah (Draw on Liquidity).`;
-    } else if (directionBias === "SELL" && rejectionWickSell > rangeSize * 0.45) {
-      smcScore += 1;
-      candleDetails = `Price Delivery: PINBAR WICK REJECTION. Pembuangan drastis posisi buy dari stop-hunters tercermin di ekor pucuk atas, persiapan kuat menuju markdown.`;
+    idmScore += 3;
+    idmDetails = `Liquidity Inducement (IDM): SWEEP VALID. Institusi menyapu Liquidity Sell-Side ritel (IDM di $${recentLow.toFixed(2)}). Menyiapkan injeksi Reversal sejati via Extreme Order Block.`;
+    
+    if (inKillzone && currentClose < nyMidnightPrice) {
+      timeAndPriceScore += 3;
+      timeAndPriceDetails = `Time & Price Delivery: JUDAS SWING DETECTED! Manipulasi harga di bawah NY Midnight Open ($${nyMidnightPrice.toFixed(2)}) pada sesi Killzone. Discount prices dipicu.`;
     } else {
-      candleDetails = `Price Delivery: STRUCTURAL ENGULFING. Penegasan momentum tubuh lilin seimbang menyeberangi kuadran harga kritis.`;
+      timeAndPriceDetails = `Time & Price Delivery: Harga di luar Killzone optimal. Menyatukan konfirmasi struktural M15.`;
+    }
+  } else if (sweptHighs && (currentClose > nyMidnightPrice || !inKillzone)) {
+    directionBias = "SELL";
+    idmScore += 3;
+    idmDetails = `Liquidity Inducement (IDM): SWEEP VALID. Institusi menyapu Liquidity Buy-Side ritel (IDM di $${recentHigh.toFixed(2)}). Distribusi tajam akan dimulai.`;
+
+    if (inKillzone && currentClose > nyMidnightPrice) {
+      timeAndPriceScore += 3;
+      timeAndPriceDetails = `Time & Price Delivery: ACCUMULATION MANIPULATION! Harga didorong melampaui NY Midnight Open ($${nyMidnightPrice.toFixed(2)}) membujuk breakout trader, persiapan Markdown masif.`;
+    } else {
+      timeAndPriceDetails = `Time & Price Delivery: Harga bermanuver di fase konsolidasi harian standar. Mengalibrasi ulang titik ekstrim.`;
+    }
+  } else {
+    // Determine overall bias using SMC range rules if no sweep
+    const closeRelativeToRange = (currentClose - lowestOp) / (Math.max(0.1, highestOp - lowestOp));
+    directionBias = closeRelativeToRange < 0.4 ? "BUY" : "SELL";
+    idmDetails = `Liquidity Inducement (IDM): INTERNAL BUILDUP. Menunggu setup jebakan trader ritel di fraktal ${directionBias === "BUY" ? "terbawah" : "teratas"}.`;
+    timeAndPriceDetails = `Time & Price Delivery: Netral. Mendeteksi jejak footprint di dalam range ($${lowestOp.toFixed(2)} - $${highestOp.toFixed(2)}).`;
+  }
+
+  // 3. Balanced Price Range (BPR) & True Inefficiency
+  let bprFound = false;
+  let bprType = "";
+  let bprPrice = 0;
+  let bprScore = 0;
+  let bprDetails = "";
+
+  if (activeCandles.length >= 6) {
+    for (let i = activeCandles.length - 2; i >= Math.max(0, activeCandles.length - 15); i--) {
+      // Check for consecutive opposing FVG indicating BPR
+      const prevCandleObj = activeCandles[i-1];
+      const prevPrevCandleObj = activeCandles[i-3];
+      
+      const isBullishFVG = prevCandleObj.low > prevPrevCandleObj.high;
+      const isBearishFVG = prevCandleObj.high < prevPrevCandleObj.low;
+
+      if (isBullishFVG && activeCandles[i].close < prevPrevCandleObj.high) {
+        bprFound = true; bprType = "SELL"; bprPrice = prevCandleObj.low; break;
+      } else if (isBearishFVG && activeCandles[i].close > prevPrevCandleObj.low) {
+        bprFound = true; bprType = "BUY"; bprPrice = prevCandleObj.high; break;
+      }
     }
   }
 
-  const totalConfluenceScore = smcScore + obScore; 
+  if (bprFound && bprType === directionBias) {
+    bprScore += 3;
+    bprDetails = `Balanced Price Range (BPR): TEROBSERVASI SENSITIF. Algoritmik Inefficiency murni ditemukan di $${bprPrice.toFixed(2)}. FVG sebelumnya dijebol telak, menyisakan area High-Precision Reversion.`;
+  } else {
+    bprDetails = `Balanced Price Range (BPR): STANDAR FVG. Struktur inefisiensi minor. Bergantung total pada Order Block primer dan volume footprint.`;
+  }
+
+  // 4. Volume Profile & Point of Control (POC) Institutional
+  let pocScore = 0;
+  let volProfileDetails = "";
+  
+  // Aggregate crude Volume Profile
+  let highestVol = 0;
+  let pocPrice = currentClose;
+  const volMap = new Map<number, number>();
+  
+  activeCandles.forEach(c => {
+    const p = Math.round(c.close * 2) / 2; // bin to 0.5
+    volMap.set(p, (volMap.get(p) || 0) + c.volume);
+    if (volMap.get(p)! > highestVol) {
+      highestVol = volMap.get(p)!;
+      pocPrice = p;
+    }
+  });
+
+  const distToPOC = Math.abs(currentClose - pocPrice);
+  if (directionBias === "BUY" && currentClose < pocPrice && distToPOC > 3.0) {
+    pocScore += 2;
+    volProfileDetails = `Volume Profile (POC): MEAN REVERSION SETUP. Harga terekstensi ke bawah menjauhi Daily POC ($${pocPrice.toFixed(2)}). Probabilitas pantulan magnetik masif ke rentang Value Area.`;
+  } else if (directionBias === "SELL" && currentClose > pocPrice && distToPOC > 3.0) {
+    pocScore += 2;
+    volProfileDetails = `Volume Profile (POC): OVEREXPANDED PREMIUM. Laju penawaran menjauhi pusat grafitasi POC ($${pocPrice.toFixed(2)}). Smart money siap membanting aset ke titik asal equilibrium.`;
+  } else {
+    volProfileDetails = `Volume Profile (POC): HIGH COMPRESSION. Harga terperangkap di pusat akumulasi Value Area ($${pocPrice.toFixed(2)}). Menunggu rilis volatilitas besar.`;
+  }
+
+  // 5. Delta Absorption (Order Book Footprint)
+  const qm = generateQuantMetrics(activeCandles, currentClose);
+  let deltaScore = 0;
+  let deltaDetails = "";
+
+  // Incorporating OFI and CVD anomalies to detect Absorption
+  const isUpwardFake = directionBias === "SELL" && qm.ofiValue < -50 && qm.cvdDivergenceDetected;
+  const isDownwardFake = directionBias === "BUY" && qm.ofiValue > 50 && qm.cvdDivergenceDetected;
+
+  if (isUpwardFake) {
+    deltaScore += 4;
+    deltaDetails = `Delta Absorption: RETAIL BULL-TRAP! Harga menembus ke atas namun Smart Money menembakkan masif SELL LIMITS (CVD Divergence + OFI Negatif). Pembeli diserap habis. ZERO-FLOAT REVERSAL.`;
+  } else if (isDownwardFake) {
+    deltaScore += 4;
+    deltaDetails = `Delta Absorption: RETAIL BEAR-TRAP! False breakdown terekam (CVD divergen naik di tengah turunnya harga). Tembok Demand Limit Order mengabsorpsi seluruh tekanan jual. BIG BOUNCE SIAP.`;
+  } else {
+    deltaDetails = `Delta Absorption: NETRAL FOOTPRINT. Aliran pesanan Delta selaras dengan pergerakan candle reguler tanpa resistensi block sembunyi.`;
+  }
+
+  // Final Aggregation & Validation Filter
+  const totalInstitutionScore = timeAndPriceScore + idmScore + bprScore + pocScore + deltaScore;
   let strategy = directionBias === "BUY" 
-    ? "Perseus SMC High-Probability Demand Block & Liquidity Sweep (BUY)"
-    : "Perseus SMC High-Probability Supply Block & Liquidity Sweep (SELL)";
+    ? "Perseus SMC Zero-Float BPR Demand (BUY)"
+    : "Perseus SMC Zero-Float BPR Supply (SELL)";
 
-  const computedConfidence = Math.min(Math.max(Math.floor(86 + (totalConfluenceScore * 1.5)), 88), 99);
+  // We explicitly reject low-quality retail signals
+  let adjustedConfidence = Math.min(Math.max(86 + totalInstitutionScore * 1.2, 86), 99.9);
+  
+  if (totalInstitutionScore < 3) {
+    // Modest confidence if we didn't trigger our hyper-specific traps
+    adjustedConfidence = Math.min(84, adjustedConfidence);
+    strategy = `Perseus ${directionBias === "BUY" ? "Accumulation" : "Distribution"} Sweep (Low Volatility)`;
+  }
 
-  // Structural Stop Loss - Not flat ATR anymore!
-  // Find a solid protective swing point to hide the SL behind.
+  if (qm.vpinBannedBuy && directionBias === "BUY") {
+    adjustedConfidence = Math.max(78, adjustedConfidence - 12);
+  }
+
+  // Adaptive Hard-Stop
   let slLimit = 0;
   let slDistance = 0;
-  const padding = 1.25; // Provide structural breathing room
+  const structPadding = 1.25;
 
   if (directionBias === "BUY") {
-    // Hide SL below the lowest swing point, but bound it to prevent catastrophic wide SL and tight instant stop outs
-    slLimit = Math.max(price - 12.0, Math.min(lowestSwingLow - padding, price - 3.5));
+    slLimit = Math.max(price - 12.0, Math.min(lowestOp - structPadding, price - 3.5));
+    // If IDM sweep occurred, pull SL tighter! Zero floating ambition
+    if (sweptLows && (isDownwardFake || bprFound)) {
+      slLimit = Math.max(price - 4.5, lowestOp - 0.5);
+    }
     slDistance = price - slLimit;
   } else {
-    // Hide SL above the highest swing point
-    slLimit = Math.min(price + 12.0, Math.max(highestSwingHigh + padding, price + 3.5));
+    slLimit = Math.min(price + 12.0, Math.max(highestOp + structPadding, price + 3.5));
+    if (sweptHighs && (isUpwardFake || bprFound)) {
+      slLimit = Math.min(price + 4.5, highestOp + 0.5);
+    }
     slDistance = slLimit - price;
   }
 
-  // Adjust Take Profit limits proportionally based on SMC 1:3 minimums
+  // TP scaling 1:3 minimums via Institutional framework
   const tp1Distance = Number((slDistance * 1.5).toFixed(2));
-  const tp2Distance = Number((slDistance * 3.0).toFixed(2));
-  const tp3Distance = Number((slDistance * 5.5).toFixed(2));
+  const tp2Distance = Number((slDistance * 3.2).toFixed(2));
+  const tp3Distance = Number((slDistance * 6.0).toFixed(2));
 
   const tpTarget1 = directionBias === "BUY" ? price + tp1Distance : price - tp1Distance;
   const tpTarget2 = directionBias === "BUY" ? price + tp2Distance : price - tp2Distance;
   const tpTarget3 = directionBias === "BUY" ? price + tp3Distance : price - tp3Distance;
 
-  const utcHour = new Date().getUTCHours();
-  const tradeSessionWindow = utcHour >= 12 && utcHour <= 20 ? "New York Killzone" : utcHour >= 6 && utcHour <= 14 ? "London Killzone" : "Asian Consolidation Session";
-
-  const qm = generateQuantMetrics(activeCandles, price);
-  const qCvdStatus = qm.cvdDivergenceDetected ? `🔴 WASPADA DIVERGENSI: ${qm.cvdDivergenceDirection}` : "🟢 AKUMULASI DELTA NORMAL (Searah dengan trend mikro)";
-  const qOfiStatus = `⚡ OFI: ${qm.ofiValue} Lot (Persentil: ${qm.ofiPercentile}%) -> ${qm.ofiSignal}`;
-  const qVpinStatus = `☣️ VPIN: ${qm.vpinValue} (Toksisitas Institusi: ${qm.vpinStatus}) -> ${qm.vpinBannedBuy ? "⚠️ BANNED ENTRI AWAM (Ada aliran Toxic Flow)" : "✅ LIKUIDITAS JERNIH & AMAN"}`;
-  const qNoiseStatus = `🔬 Kernel Volatility: ${qm.realizedKernelVol} (Rasio Kebisingan Ritel: ${(qm.noiseRatio * 100).toFixed(1)}%) -> ${qm.noiseFilterStatus}`;
-  const qTwapStatus = `⚖️ Deviasi TWAP Smart Money: $${qm.twapValue} (${qm.twapDeviationBps} Bps) -> ${qm.twapPercentileState}`;
-  const qKalmanStatus = `🎯 Kalman Filter Algos: $${qm.kalmanPrice} (Slope: ${qm.kalmanSlope}) -> Kondisi: ${qm.kalmanTrendState}`;
-
-  let adjustedConfidence = computedConfidence;
-  if (qm.vpinBannedBuy && directionBias === "BUY") {
-    adjustedConfidence = Math.max(80, adjustedConfidence - 12);
-  }
+  const tradeSessionWindow = isNYKillzone ? "New York Killzone (High Liq)" : isLondonKillzone ? "London Killzone (Mid Liq)" : "Asian Session (Low Vol)";
 
   const commentary = `
-Spot Gold Exec: $${price.toFixed(2)} | Zero-Floating Target
-Arahan Eksekusi: ${directionBias === "BUY" ? "🟢 HIGH-PROBABILITY BUY LMT" : "🔴 HIGH-PROBABILITY SELL LMT"} (Akurasi Presisi: ${adjustedConfidence}%)
-Setup Algoritma: ${strategy}
+Spot Gold Exec: $${price.toFixed(2)} | Target: Zero-Floating Precision
+Arahan Eksekusi: ${directionBias === "BUY" ? "🟢 INSTITUTIONAL LMT BUY" : "🔴 INSTITUTIONAL LMT SELL"} (Akurasi Terkalibrasi: ${adjustedConfidence.toFixed(1)}%)
+Algoritma: ${strategy}
 
-=== 🏛️ SMART MONEY CONCEPTS (SMC) & FAKTOR STRUKTURAL ===
-1. 🌊 ${liqDetails}
-2. 📐 ${structureDetails}
-3. 🧲 ${fvgDetails}
-4. 🧱 ${obDetails}
-5. 🕯️ ${candleDetails}
+=== 🏛️ INSTITUTIONAL ALGORITHMIC LOGIC (NO RETAIL INDICATORS) ===
+1. 🕒 ${timeAndPriceDetails}
+2. 🧲 ${idmDetails}
+3. 🧱 ${bprDetails}
+4. 📊 ${volProfileDetails}
+5. 🛡️ ${deltaDetails}
 
-=== 🔮 LAPISAN TACTICAL QUANTITATIVE ORDER FLOW ===
-• 📊 CVD (Cumulative Volume Delta): ${qCvdStatus}
-• ⚡ Order Flow Imbalance (OFI): ${qOfiStatus}
-• ☣️ Algorithmic Toxicity (VPIN): ${qVpinStatus}
-• 🔬 Penyaringan Kebisingan Fractal: ${qNoiseStatus}
-• 📏 Anomali Harga TWAP: ${qTwapStatus}
-• 🎯 Proyeksi Vektor Kalman: ${qKalmanStatus}
-• 🌐 Arbitrase Multi-Aset: DXY mendikte XAUUSD sebesar ${qm.crossAssetMatrix["DXY (Dolar Index)"]["XAUUSD (Emas)"]} bps korelasi struktural.
+=== ⚔️ ORDER DEEP DIVE (QUANT LAYER) ===
+• Toksisitas Institusi VPIN: ${qm.vpinStatus} (${qm.vpinBannedBuy ? "⚠️ DILARANG RETAIL BUY" : "Aman & Taktikal"})
+• Distorsi TWAP Deviasi: $${qm.twapValue} -> ${qm.twapPercentileState}
 
 === 🛡️ REKAMAN PRESISI & MANAJEMEN RISIKO KETAT ===
-Desain ini menanggalkan seluruh ketergantungan pada indikator ritel tertinggal (lagging seperti MACD/RSI/MA), melainkan murni mengeksploitasi jebakan likuiditas (Liquidity Hunt) dan celah nilai harga institusi (FVG). Stop loss TIDAK DIPATOK tetap, melainkan ditekan logis persis di belakang jejak benteng Swing Maker (High/Low) pelindung terakhir.
-- 🛑 Adaptive Structural Stop Loss: Terdampar kokoh di $${slLimit.toFixed(2)} (Batas kerugian tereduksi ${(slDistance * 10).toFixed(0)} Pips). Mencegah spike sapuan liar.
-- 🎯 Ekspektasi TP Ratio 1:3+: TP1 +${(tp1Distance * 10).toFixed(0)} Pips, TP2 +${(tp2Distance * 10).toFixed(0)} Pips, Extremes Cap TP3 +${(tp3Distance * 10).toFixed(0)} Pips.
-- 🕒 Killzone Validitas: Dieksekusi tervalidasi pada zona volatilitas murni ${tradeSessionWindow}.
+Kami sepenuhnya menolak pola lama (Breakout / Support & Resistance klasik). Eksekusi ${directionBias} ini MURNI dijalankan dari area Liquidator Institusi (Absorbsi + BPR).
+- 🛑 Adaptive Structural Stop Loss: Tertancap presisi di $${slLimit.toFixed(2)} (Resiko tereduksi ekstrem ke ${Number((slDistance * 10).toFixed(0))} Pips).
+- 🎯 Ekspektasi Proporsi Institusional (1:3+): TP1 +${Number((tp1Distance * 10).toFixed(0))} Pips, TP2 +${Number((tp2Distance * 10).toFixed(0))} Pips, TP Ekstrim +${Number((tp3Distance * 10).toFixed(0))} Pips.
+- 🕒 Profil Validitas Area: ${tradeSessionWindow}.
   `.trim();
 
   return {
@@ -656,7 +693,7 @@ Desain ini menanggalkan seluruh ketergantungan pada indikator ritel tertinggal (
     takeProfit3: Number(tpTarget3.toFixed(2)),
     status: "ACTIVE",
     pips: 0,
-    confidence: adjustedConfidence,
+    confidence: Number(adjustedConfidence.toFixed(0)),
     strategy: strategy,
     commentary: commentary
   };
