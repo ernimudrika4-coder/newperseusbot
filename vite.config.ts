@@ -10,6 +10,8 @@ import {
   processPerseusMarketData
 } from './src/lib/perseusEngine';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // Custom Vite API Server plugin to handle development requests seamlessly in Vite preview
 function apiServerPlugin() {
   return {
@@ -154,7 +156,7 @@ Write the analytical response entirely in polite and professional INDONESIAN lan
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), apiServerPlugin()],
+    plugins: [react(), tailwindcss(), apiServerPlugin(), cloudflare()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
