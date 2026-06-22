@@ -447,14 +447,6 @@ function generatePerseusParams(prevPrice: number): MarketParams {
 // Master function to construct a locked active trade setup
 function createNewLiveSignal(
   price: number,
-  ema50: number,
-  sma50: number,
-  sma200: number,
-  rsi: number,
-  atr: number,
-  latestMacdHist: number,
-  upperBand: number,
-  lowerBand: number,
   candles: Candle[]
 ): Signal {
   const activeCandles = candles && candles.length > 0 ? candles : [];
@@ -793,7 +785,7 @@ async function _processPerseusMarketDataInternal(): Promise<void> {
     // ----------------------------------------------------
 
     if (activeLiveSignal.id === "sig-perseus-initial" || activeLiveSignal.status !== "ACTIVE") {
-      activeLiveSignal = createNewLiveSignal(priceQuote, finalEma50, finalSma50, finalSma200, finalRsi, finalAtr, latestMacdHist, finalBbUpper, finalBbLower, candlestickSeries);
+      activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries);
       saveSignalsToDB(activeLiveSignal, activeHistorySignals);
       console.log(`[Perseus Core] Generated locked active signal setup. Type: ${activeLiveSignal.type}, Entry: ${activeLiveSignal.entryPrice}, SL: ${activeLiveSignal.stopLoss}`);
     } else {
@@ -903,7 +895,7 @@ async function _processPerseusMarketDataInternal(): Promise<void> {
         console.log(`[Perseus Core] Terminal Closed Trade - Result: ${closeStatus}, Pips: ${profitPips}, Exit: ${executionPrice}`);
 
         // Spawn next locked trade setup immediately so we always have a frozen trade running
-        activeLiveSignal = createNewLiveSignal(priceQuote, finalEma50, finalSma50, finalSma200, finalRsi, finalAtr, latestMacdHist, finalBbUpper, finalBbLower, candlestickSeries);
+        activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries);
         saveSignalsToDB(activeLiveSignal, activeHistorySignals);
       }
     }
@@ -1001,7 +993,7 @@ async function _triggerAISignalScanInternal(forceRetry = false): Promise<Signal>
   const lowerBand = Number(fullBb.lower[fullBb.lower.length - 1].toFixed(2));
 
   // Generate perfect high-conviction locked signal
-  const newSignal = createNewLiveSignal(price, ema50, sma50, sma200, rsi, atr, latestMacdHist, upperBand, lowerBand, candlestickSeries);
+  const newSignal = createNewLiveSignal(price, candlestickSeries);
   
   activeLiveSignal = newSignal;
   saveSignalsToDB(activeLiveSignal, activeHistorySignals);
