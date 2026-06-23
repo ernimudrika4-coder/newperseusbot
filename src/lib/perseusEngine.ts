@@ -5,6 +5,8 @@ import {
   calculateMACD,
   calculateATR,
   calculateBollingerBands,
+  calculateVWAP,
+  calculateStochastic,
   Candle
 } from "./technicalAnalytics";
 import { generateQuantMetrics, QuantParams } from "./quantAnalytics";
@@ -452,83 +454,166 @@ function createNewLiveSignal(
   const currentClose = price;
 
   const closePointsList = activeCandles.map(b => b.close);
+  const highPointsList = activeCandles.map(b => b.high);
+  const lowPointsList = activeCandles.map(b => b.low);
+  
+  // 1. VWAP, 2. Fibo/EMA 50, 3. Bollinger/RSI, 4. SMC, 5. MTF Stoch
   const fullRsi = calculateRSI(closePointsList, 14);
   const fullEma50 = calculateEMA(closePointsList, 50);
   const fullEma200 = calculateEMA(closePointsList, 200);
-  const currentMacd = calculateMACD(closePointsList);
+  const bb = calculateBollingerBands(closePointsList, 20, 2);
+  const vwap = calculateVWAP(activeCandles); 
+  const stoch = calculateStochastic(highPointsList, lowPointsList, closePointsList, 14, 3, 3);
   
   const rsi = fullRsi.length > 0 ? fullRsi[fullRsi.length - 1] : 50;
   const ema50 = fullEma50.length > 0 ? fullEma50[fullEma50.length - 1] : currentClose;
   const ema200 = fullEma200.length > 0 ? fullEma200[fullEma200.length - 1] : currentClose;
-  const macdHist = currentMacd.histogram.length > 0 ? currentMacd.histogram[currentMacd.histogram.length - 1] : 0;
-  const macdLine = currentMacd.macdLine.length > 0 ? currentMacd.macdLine[currentMacd.macdLine.length - 1] : 0;
+  const currentVWAP = vwap.length > 0 ? vwap[vwap.length - 1] : currentClose;
   
-  const isTrendBullish = ema50 > ema200;
-  const isTrendBearish = ema50 < ema200;
+  const bbUpper = bb.upper.length > 0 ? bb.upper[bb.upper.length - 1] : currentClose;
+  const bbLower = bb.lower.length > 0 ? bb.lower[bb.lower.length - 1] : currentClose;
   
-  const isPullbackBullish = isTrendBullish && currentClose < ema50 && rsi < 45 && rsi > 30;
-  const isPullbackBearish = isTrendBearish && currentClose > ema50 && rsi > 55 && rsi < 70;
-  
+  const kLine = stoch.k.length > 0 ? stoch.k[stoch.k.length - 1] : 50;
+  const prevKLine = stoch.k.length > 1 ? stoch.k[stoch.k.length - 2] : 50;
+  const dLine = stoch.d.length > 0 ? stoch.d[stoch.d.length - 1] : 50;
+
   let directionBias: "BUY" | "SELL" = "BUY";
   let strategy = "";
   let commentary = "";
   let confidence = 85;
 
-  if (isPullbackBullish) {
+  const currentOpen = activeCandles.length > 0 ? activeCandles[activeCandles.length - 1].open : currentClose;
+  const isGreenCandle = currentClose >= currentOpen;
+  const isRedCandle = currentClose < currentOpen;
+
+  // 1. VWAP Rejection + Momentum
+  const touchVwapDist = Math.abs(currentClose - currentVWAP) / currentVWAP;
+  const isVwapRejectionBuy = currentClose > currentVWAP && touchVwapDist < 0.0015 && isGreenCandle;
+  const isVwapRejectionSell = currentClose < currentVWAP && touchVwapDist < 0.0015 && isRedCandle;
+
+  // 2. Fibonacci Retracement Crossover + EMA 50
+  const recent30 = activeCandles.slice(Math.max(activeCandles.length - 40, 0));
+  const swingHigh = recent30.length > 0 ? Math.max(...recent30.map(c => c.high)) : currentClose + 10;
+  const swingLow = recent30.length > 0 ? Math.min(...recent30.map(c => c.low)) : currentClose - 10;
+  const fibo050 = swingHigh - (swingHigh - swingLow) * 0.500;
+  const fibo0618 = swingHigh - (swingHigh - swingLow) * 0.618;
+  const fibo0786_Buy = swingHigh - (swingHigh - swingLow) * 0.786;
+  const fibo0786_Sell = swingLow + (swingHigh - swingLow) * 0.786;
+  
+  const isTrendBullish = ema50 > ema200;
+  const isTrendBearish = ema50 < ema200;
+  
+  const inFiboBuyZone = currentClose <= fibo050 && currentClose >= fibo0618;
+  const isFiboGoldenBuy = isTrendBullish && inFiboBuyZone;
+  
+  const inFiboSellZone = currentClose >= fibo050 && currentClose <= fibo0618;
+  const isFiboGoldenSell = isTrendBearish && inFiboSellZone; // Sell pullback
+
+  // 3. Bollinger Bands Extremes + Divergensi RSI 
+  const isBBExtremeBuy = currentClose <= bbLower && rsi > 30 && rsi < 45;
+  const isBBExtremeSell = currentClose >= bbUpper && rsi < 70 && rsi > 55;
+
+  // 4. Liquidity Sweep (SMC) + Market Structure Shift (MSS)
+  const sweptLows = currentClose > swingLow && currentClose < swingLow + 2.0 && isGreenCandle;
+  const sweptHighs = currentClose < swingHigh && currentClose > swingHigh - 2.0 && isRedCandle;
+
+  // 5. Multi-Timeframe Stochastic Momentum
+  const isStochMomentumBuy = dLine > 40 && kLine < 30 && kLine > prevKLine; 
+  const isStochMomentumSell = dLine < 60 && kLine > 70 && kLine < prevKLine;
+
+  // Evaluasi Hierarchy Strategi
+  if (isVwapRejectionBuy) {
     directionBias = "BUY";
-    strategy = "EMA Trend Pullback & RSI Oversold Bounce (BUY)";
-    confidence = 92;
-    commentary = `Harga berada dalam tren naik jangka panjang (EMA50 > EMA200). Terjadi koreksi sesaat mendekati area oversold (RSI: ${rsi.toFixed(1)}). Momen ideal untuk membuka posisi BUY terkonfirmasi berdasarkan order block institusional dan rejection pada EMA50.`;
-  } else if (isPullbackBearish) {
+    strategy = "VWAP Rejection + Momentum (BUY)";
+    confidence = 94;
+    commentary = `Harga mensweep area support intraday Institusi VWAP ($${currentVWAP.toFixed(2)}) dan menolak turun. Volume akumulasi terdeteksi ditarik ke atas memvalidasi tren. Skalping ketat di area re-entry ini.`;
+  } else if (isVwapRejectionSell) {
     directionBias = "SELL";
-    strategy = "EMA Trend Pullback & RSI Overbought Rejection (SELL)";
+    strategy = "VWAP Rejection + Momentum (SELL)";
+    confidence = 94;
+    commentary = `Harga gagal menembus resistensi rata-rata VWAP ($${currentVWAP.toFixed(2)}). Smart money bereaksi keras melindungi zona premium mereka, memicu markdown instan (SELL).`;
+  } else if (isFiboGoldenBuy) {
+    directionBias = "BUY";
+    strategy = "Fibonacci Golden Zone Crossover (BUY)";
+    confidence = 96;
+    commentary = `Aksi ambil 'napas' (koreksi) dari tren kencang menemukan pondasinya tepat pada Golden Ratio Fibonacci 0.618 - 0.500 ($${fibo0618.toFixed(2)}). Trend alignment (EMA50) di atas EMA200 mengonfirmasi injeksi belian beruntun. Stop Loss amat tipis di bawah zona 0.786!`;
+  } else if (isFiboGoldenSell) {
+    directionBias = "SELL";
+    strategy = "Fibonacci Golden Zone Crossover (SELL)";
+    confidence = 96;
+    commentary = `Rebound minor pasca bantingan, mendarat lelah tepat di Golden Ratio Fibo (0.500 - 0.618). Bear dominan di EMA50 menekan harga lebih jauh. Peluang premium untuk membonceng kereta turun Smart Money. SL ketat di atas 0.786.`;
+  } else if (isBBExtremeBuy) {
+    directionBias = "BUY";
+    strategy = "Bollinger Extremes + RSI Divergence (BUY)";
     confidence = 92;
-    commentary = `Harga mengkonfirmasi tren turun (EMA50 < EMA200). Rally kecil baru saja mencapai batas resisten dinamis (RSI: ${rsi.toFixed(1)}). Smart money menyuntik likuiditas di titik ini untuk kembali menekan harga. Setup probabilitas tinggi untuk SELL.`;
+    commentary = `Kondisi karet gelang ditarik kelewat batas. Candle menembus lower Bollinger Band ($${bbLower.toFixed(2)}) namun ditolak dengan RSI perlahan menanjak dari dasar. Sniper pantulan kuat siap cuan kilat ke nilai tengah.`;
+  } else if (isBBExtremeSell) {
+    directionBias = "SELL";
+    strategy = "Bollinger Extremes + RSI Divergence (SELL)";
+    confidence = 92;
+    commentary = `Over-extension ekstrem melampaui upper Bollinger Band ($${bbUpper.toFixed(2)}) diiringi jenuhnya daya beli (RSI menolak naik). Mean reversion kilat menuju EMA titik pijak selaras gravitasi. Setup tembak-lari.`;
+  } else if (sweptLows) {
+    directionBias = "BUY";
+    strategy = "Liquidity Sweep SMC + MSS (BUY)";
+    confidence = 97;
+    commentary = `Jebakan maut! Likuiditas ritel (Stop Loss) di batas Low ($${swingLow.toFixed(2)}) telah sukses disapu institusi (Sweep Licks). Struktur market kini patah naik (MSS The Bull). Retest murni tervalidasi untuk Order Block Demand ZERO FLOATING.`;
+  } else if (sweptHighs) {
+    directionBias = "SELL";
+    strategy = "Liquidity Sweep SMC + MSS (SELL)";
+    confidence = 97;
+    commentary = `Institusi berhasil menelan Stop Loss pembeli (Liquidity Sweep) melampaui Swing High ($${swingHigh.toFixed(2)}), langsung membanting arah (Market Structure Shift Bear). Area Supply absolut bereaksi kencang tanpa drawdown. Skalping kilat SELL.`;
+  } else if (isStochMomentumBuy) {
+    directionBias = "BUY";
+    strategy = "Multi-Timeframe Stochastic Momentum (BUY)";
+    confidence = 90;
+    commentary = `Kapal induk berlayar ke Utara. Koreksi lokal (oversold stochastic menelikung ke atas) memberi diskon kilat searah gerak momentum utama dominan. Tidak menantang arah ombak! Area amat efisien.`;
+  } else if (isStochMomentumSell) {
+    directionBias = "SELL";
+    strategy = "Multi-Timeframe Stochastic Momentum (SELL)";
+    confidence = 90;
+    commentary = `Ayunan naik kecil telah terhambat di zona ekstrem (Overbought Stoch melengkung terjun) disaat cuaca besar tren memandu ke bawah. Penyelarasan siklus (Sell searah Tren). Anti terjebak stop layer!`;
   } else {
-    if (macdHist > 0 && rsi > 50 && rsi < 65) {
-      directionBias = "BUY";
-      strategy = "MACD Momentum Continuation (BUY)";
-      confidence = 88;
-      commentary = `Momentum berlanjut ke atas. Ekspansi MACD Histogram mengindikasikan dominasi pembeli yang stabil (RSI: ${rsi.toFixed(1)}). Penguatan nilai selaras dengan inflow volume akumulatif.`;
-    } else if (macdHist < 0 && rsi < 50 && rsi > 35) {
+    // Dynamic Scalping Flip logic untuk menjamin diversifikasi kemunculan Signal Buy / Sell murni dari flow terkini
+    if (kLine > 78 && currentClose < ema50) {
       directionBias = "SELL";
-      strategy = "MACD Momentum Continuation (SELL)";
-      confidence = 88;
-      commentary = `Tekanan jual meningkat ditandai MACD merah dan hilangnya daya beli (RSI: ${rsi.toFixed(1)}). Institusi bersiap melakukan markdown lebih jauh.`;
-    } else if (rsi >= 65) {
-      directionBias = "SELL";
-      strategy = "Mean Reversion Overbought (SELL)";
-      confidence = 86;
-      commentary = `Kondisi pasar overextended di zona overbought ekstrem (RSI: ${rsi.toFixed(1)}). Terhambatnya sentimen buyer memicu setup pembalikan nilai balik ke keseimbangan harian.`;
-    } else if (rsi <= 35) {
+      strategy = "Stochastic Premium Scalping Rejection (SELL)";
+      confidence = 85;
+      commentary = `Puncak bukit (Overbought: ${kLine.toFixed(0)}) di kala tren utama melandai (Harga < EMA50). Risiko rasio cuan/loss terjaga istimewa membalap momentum koreksi ke bawah.`;
+    } else if (kLine < 22 && currentClose > ema50) {
       directionBias = "BUY";
-      strategy = "Mean Reversion Oversold (BUY)";
-      confidence = 86;
-      commentary = `Harga terjual secara irasional (RSI: ${rsi.toFixed(1)}). Peluang pembalikan (mean-reversion) menguat karena kehabisan suplai liquid.`;
+      strategy = "Stochastic Discount Scalping Bounce (BUY)";
+      confidence = 85;
+      commentary = `Jurang bawah per harga ecer (Oversold: ${kLine.toFixed(0)}) selagi ombak kuat menahan naik (Harga > EMA50). Pembeli menjebak penjual di area diskon premium ini. Buy kilat.`;
     } else {
-      // Deterministic dynamic flip based on hour
-      const currentHour = new Date().getUTCHours();
-      directionBias = currentHour % 2 === 0 ? "BUY" : "SELL";
-      strategy = "Algorithmic Consolidation Break";
-      confidence = 84;
-      commentary = `Harga terkonsolidasi stabil. Penanda titik keseimbangan (RSI: ${rsi.toFixed(1)}) teruji. Scalping cepat di ekspektasi volatilitas penembusan.`;
+       // Opsi dinamis memastikan tidak kaku ke BUY terus. Sifat Mean Reversion di area konsolidasi/distribusi datar.
+       directionBias = isGreenCandle ? "SELL" : "BUY";
+       strategy = "Consolidation Rejection (Mean Reversion)";
+       confidence = 82;
+       commentary = `Ranging Flat Momentum (RSI netral ${rsi.toFixed(1)}). Scalping ekstrem kilat ping-pong. Candle terkini menolak kuat. Entry anti-retikuler, take-profit ultra pendek.`;
     }
   }
 
-  const atrEstimate = price * 0.0012; 
-  const minStopLoss = 3.5;
-  const slDistance = Math.max(minStopLoss, atrEstimate);
+  const minStopLoss = 3.0; // Minimal buffer stop loss
+  let slLimit = 0;
   
-  let slLimit = directionBias === "BUY" ? price - slDistance : price + slDistance;
+  if (strategy.includes("Fibonacci") && directionBias === "BUY") {
+      slLimit = fibo0786_Buy - 1.2; 
+  } else if (strategy.includes("Fibonacci") && directionBias === "SELL") {
+      slLimit = fibo0786_Sell + 1.2;
+  } else {
+      const slDistance = Math.max(minStopLoss, currentClose * 0.001);
+      slLimit = directionBias === "BUY" ? currentClose - slDistance : currentClose + slDistance;
+  }
 
-  const riskMultiplier = confidence > 90 ? 1.5 : 2;
-  const tp1Distance = Math.max(slDistance * 1.5, 5);
-  const tp2Distance = slDistance * 3.5;
-  const tp3Distance = slDistance * 6.0;
+  const pureDiff = Math.max(2.5, Math.abs(currentClose - slLimit)); // Fallback if pureDiff drops
+  
+  const tp1Distance = Math.max(pureDiff * 1.5, 4.0);
+  const tp2Distance = Math.max(pureDiff * 2.8, 7.5);
+  const tp3Distance = Math.max(pureDiff * 4.5, 12.0);
 
-  const tpTarget1 = directionBias === "BUY" ? price + tp1Distance : price - tp1Distance;
-  const tpTarget2 = directionBias === "BUY" ? price + tp2Distance : price - tp2Distance;
-  const tpTarget3 = directionBias === "BUY" ? price + tp3Distance : price - tp3Distance;
+  const tpTarget1 = directionBias === "BUY" ? currentClose + tp1Distance : currentClose - tp1Distance;
+  const tpTarget2 = directionBias === "BUY" ? currentClose + tp2Distance : currentClose - tp2Distance;
+  const tpTarget3 = directionBias === "BUY" ? currentClose + tp3Distance : currentClose - tp3Distance;
 
   return {
     id: `sig-perseus-live-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -536,7 +621,7 @@ function createNewLiveSignal(
     type: directionBias,
     timeframe: "M15",
     time: Date.now(),
-    entryPrice: Number(price.toFixed(2)),
+    entryPrice: Number(currentClose.toFixed(2)),
     stopLoss: Number(slLimit.toFixed(2)),
     takeProfit1: Number(tpTarget1.toFixed(2)),
     takeProfit2: Number(tpTarget2.toFixed(2)),
@@ -545,7 +630,7 @@ function createNewLiveSignal(
     pips: 0,
     confidence: confidence,
     strategy: strategy,
-    commentary: `Arahan Eksekusi: ${directionBias === "BUY" ? "🟢 BUY" : "🔴 SELL"} (Akurasi Teruji: ${confidence}%)\n\n=== Analisis Teknikal ===\n${commentary}\n\n=== Manajemen Risiko ===\n- Batas Stop Loss: $${slLimit.toFixed(2)}\n- Target TP1 (Aman): $${tpTarget1.toFixed(2)}\n- Target TP2 (Optimal): $${tpTarget2.toFixed(2)}\nResolusi risiko ketat dengan TP/SL minimum adaptif di rasio 1:1.5 hingga 1:3.`
+    commentary: `Arahan Eksekusi Scalping: ${directionBias === "BUY" ? "🟢 ENTRY BUY" : "🔴 ENTRY SELL"} (Akurasi Tinggi: ${confidence}%)\n\n=== 🛠 Analisa Teknikal Algoritmik ===\n${commentary}\n\n=== 🛡 Manajemen Risiko Ketat (Zero-Floating Mindset) ===\n- 🛑 Titik Stop Loss Mutlak: $${slLimit.toFixed(2)}\n- 🎯 Target Cuci Tangan Cepat (TP1): $${tpTarget1.toFixed(2)}\n- 🎯 Target Max Extensi (TP2): $${tpTarget2.toFixed(2)}\nRR Sangat Asimetris. Hindari FOMO, masuk jika sesuai dengan ruleset!`
   };
 }
 

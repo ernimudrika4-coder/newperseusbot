@@ -132,3 +132,45 @@ export function calculateBollingerBands(prices: number[], period = 20, multiplie
   }
   return { middle, upper, lower };
 }
+
+export function calculateVWAP(candles: Candle[]): number[] {
+  const vwap: number[] = [];
+  let cumulativeTPV = 0;
+  let cumulativeVolume = 0;
+  
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    const typicalPrice = (c.high + c.low + c.close) / 3;
+    cumulativeTPV += typicalPrice * c.volume;
+    cumulativeVolume += c.volume;
+    vwap.push(cumulativeTPV / cumulativeVolume);
+  }
+  return vwap;
+}
+
+export function calculateStochastic(highs: number[], lows: number[], closes: number[], period = 14, smoothK = 3, smoothD = 3): { k: number[], d: number[] } {
+  const fastK: number[] = [];
+  
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) {
+      fastK.push(50);
+    } else {
+      const sliceHighs = highs.slice(i - period + 1, i + 1);
+      const sliceLows = lows.slice(i - period + 1, i + 1);
+      const highestHigh = Math.max(...sliceHighs);
+      const lowestLow = Math.min(...sliceLows);
+      
+      if (highestHigh === lowestLow) {
+        fastK.push(50);
+      } else {
+        const currentK = ((closes[i] - lowestLow) / (highestHigh - lowestLow)) * 100;
+        fastK.push(currentK);
+      }
+    }
+  }
+  
+  const k = calculateSMA(fastK, smoothK);
+  const d = calculateSMA(k, smoothD);
+  return { k, d };
+}
+
