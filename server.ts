@@ -29,6 +29,10 @@ const aiScanLimiter = rateLimit({
   message: { success: false, error: "Tingkat rate-limit tercapai. Mohon tunggu sebelum meminta pemindaian AI lagi." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => {
+    return (req.headers['x-forwarded-for'] as string) || (req.headers['forwarded'] as string) || req.ip || "unknown";
+  }
 });
 
 // BOT CONFIG STORES FOR MT5 AUTO-TRADE
@@ -147,6 +151,7 @@ const instantiateGeminiClient = () => {
 };
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json());
 
 const PORT = 3000;
