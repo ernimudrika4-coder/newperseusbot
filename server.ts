@@ -152,6 +152,16 @@ const instantiateGeminiClient = () => {
 
 const app = express();
 app.set("trust proxy", 1);
+
+// Prevent caching on the Edge for Serverless/Cloudflare Workers
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+  next();
+});
+
 app.use(express.json());
 
 const PORT = 3000;

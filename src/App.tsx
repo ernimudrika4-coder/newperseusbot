@@ -168,7 +168,13 @@ export default function App() {
   // Client-side fallback computation engine to handle serverless or static hostings like Vercel with live price feeds
   const fetchLivePriceClientSide = async () => {
     try {
-      const res = await fetch("https://api.gold-api.com/price/XAU");
+      const res = await fetch(`https://api.gold-api.com/price/XAU?_=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-store"
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         const price = data.price || 4511.56; // Safe realistic spot price
