@@ -314,84 +314,78 @@ ${resolved.commentary || "Target terpenuhi sempurna."}
   }
 };
 
-// Refresh Spot gold ticker & technical indicators every 5 seconds dynamically from Real-Time TradingView & MT5 API Broker feed
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-setInterval(async () => {
-  try {
-    // If trackers haven't been successfully initialized yet, initialize them
-    if (serverLastHistoryCount === -1) {
-      const active = fetchPerseusLiveSignal();
-      const history = fetchPerseusHistorySignals();
-      serverLastActiveSignalId = active ? active.id : "";
-      serverLastActiveTp1Hit = active ? !!active.tp1Hit : false;
-      serverLastHistoryCount = history ? history.length : 0;
-    }
+function startBackgroundWorkers() {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return;
 
-    await processPerseusMarketData();
+  setInterval(async () => {
+    try {
+      if (serverLastHistoryCount === -1) {
+        const active = fetchPerseusLiveSignal();
+        const history = fetchPerseusHistorySignals();
+        serverLastActiveSignalId = active ? active.id : "";
+        serverLastActiveTp1Hit = active ? !!active.tp1Hit : false;
+        serverLastHistoryCount = history ? history.length : 0;
+      }
 
-    // Check for changes and trigger secure server-side broadcasts!
-    const nextActive = fetchPerseusLiveSignal();
-    const nextHistory = fetchPerseusHistorySignals();
+      await processPerseusMarketData();
 
-    if (nextActive && nextActive.id !== "sig-perseus-initial" && nextActive.id !== serverLastActiveSignalId) {
-      serverLastActiveSignalId = nextActive.id;
-      serverLastActiveTp1Hit = !!nextActive.tp1Hit;
-      
-      // Triggers automatic secure server broadcast
-      await broadcastActiveSignalToTelegram(nextActive);
-      
-      // Let's also log to bot execution logs!
-      const config = loadBotConfig();
-      config.executionLogs.unshift({
-        time: new Date().toISOString(),
-        type: "SYSTEM",
-        message: `📢 Broadcaster - Sinyal Aktif Baru (${nextActive.type}) berhasil disiarkan ke Telegram.`
-      });
-      if (config.executionLogs.length > 200) config.executionLogs.pop();
-      saveBotConfig(config);
-    }
+      const nextActive = fetchPerseusLiveSignal();
+      const nextHistory = fetchPerseusHistorySignals();
 
-    // Check if TP1 was hit on the currently monitored active signal
-    if (nextActive && nextActive.id === serverLastActiveSignalId && nextActive.tp1Hit && !serverLastActiveTp1Hit) {
-      serverLastActiveTp1Hit = true;
-      await broadcastTp1HitToTelegram(nextActive);
-
-      // Log to bot execution logs
-      const config = loadBotConfig();
-      config.executionLogs.unshift({
-        time: new Date().toISOString(),
-        type: "SYSTEM",
-        message: `📢 Broadcaster - Sinyal #${nextActive.id.slice(0, 9)} menyentuh target TP1. Disiarkan ke Telegram.`
-      });
-      if (config.executionLogs.length > 200) config.executionLogs.pop();
-      saveBotConfig(config);
-    }
-
-    if (nextHistory && nextHistory.length > serverLastHistoryCount) {
-      // Something was resolved! Find out which items are newly added
-      const prevCount = serverLastHistoryCount;
-      serverLastHistoryCount = nextHistory.length;
-      
-      if (prevCount !== -1 && prevCount !== 0) {
-        // Broadcast the newly added resolved signal (it is prepended at index 0)
-        const newlyResolved = nextHistory[0];
-        await broadcastResolvedSignalToTelegram(newlyResolved);
+      if (nextActive && nextActive.id !== "sig-perseus-initial" && nextActive.id !== serverLastActiveSignalId) {
+        serverLastActiveSignalId = nextActive.id;
+        serverLastActiveTp1Hit = !!nextActive.tp1Hit;
         
-        // Log to bot execution logs
+        await broadcastActiveSignalToTelegram(nextActive);
+        
         const config = loadBotConfig();
         config.executionLogs.unshift({
           time: new Date().toISOString(),
           type: "SYSTEM",
-          message: `📢 Broadcaster - Sinyal #${newlyResolved.id.slice(0, 9)} (${newlyResolved.status}) disiarkan ke Telegram.`
+          message: `📢 Broadcaster - Sinyal Aktif Baru (${nextActive.type}) berhasil disiarkan ke Telegram.`
         });
         if (config.executionLogs.length > 200) config.executionLogs.pop();
         saveBotConfig(config);
       }
+
+      if (nextActive && nextActive.id === serverLastActiveSignalId && nextActive.tp1Hit && !serverLastActiveTp1Hit) {
+        serverLastActiveTp1Hit = true;
+        await broadcastTp1HitToTelegram(nextActive);
+
+        const config = loadBotConfig();
+        config.executionLogs.unshift({
+          time: new Date().toISOString(),
+          type: "SYSTEM",
+          message: `📢 Broadcaster - Sinyal #${nextActive.id.slice(0, 9)} menyentuh target TP1. Disiarkan ke Telegram.`
+        });
+        if (config.executionLogs.length > 200) config.executionLogs.pop();
+        saveBotConfig(config);
+      }
+
+      if (nextHistory && nextHistory.length > serverLastHistoryCount) {
+        const prevCount = serverLastHistoryCount;
+        serverLastHistoryCount = nextHistory.length;
+        
+        if (prevCount !== -1 && prevCount !== 0) {
+          const newlyResolved = nextHistory[0];
+          await broadcastResolvedSignalToTelegram(newlyResolved);
+          
+          const config = loadBotConfig();
+          config.executionLogs.unshift({
+            time: new Date().toISOString(),
+            type: "SYSTEM",
+            message: `📢 Broadcaster - Sinyal #${newlyResolved.id.slice(0, 9)} (${newlyResolved.status}) disiarkan ke Telegram.`
+          });
+          if (config.executionLogs.length > 200) config.executionLogs.pop();
+          saveBotConfig(config);
+        }
+      }
+    } catch (err) {
+      console.log("Ticker feed update processed with minor warnings.");
     }
-  } catch (err) {
-    console.log("Ticker feed update processed with minor warnings.");
-  }
-}, 5000);
+  }, 5000);
+
+  setInterval(pollTelegramCommands, 5500);
 }
 
 // Endpoint delivering live prices and calculations
@@ -635,9 +629,7 @@ const pollTelegramCommands = async () => {
 
 // Background loop for Telegram commands (Local dev only, won't sustain on Vercel)
 // Start background loop for Telegram command check
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  setInterval(pollTelegramCommands, 5500);
-}
+// (Interval moved to startBackgroundWorkers)
 
 app.post("/api/signals/scan", aiScanLimiter, async (req: any, res: any) => {
   try {
@@ -1340,7 +1332,18 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Perseus Intelligence server listening on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
+    startBackgroundWorkers();
+  });
+
+  process.on("SIGTERM", () => {
+    console.log("SIGTERM received");
+    server.close(() => process.exit(0));
+  });
+  
+  process.on("SIGINT", () => {
+    console.log("SIGINT received");
+    server.close(() => process.exit(0));
   });
 
   // Setup WebSocket Server for Real-Time Price Streaming

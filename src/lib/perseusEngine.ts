@@ -977,10 +977,14 @@ function _triggerWssBroadcast() {
   }
 }
 
+const isBuildProcess = process.argv.some(arg => arg.endsWith('vite') && process.argv.includes('build')) || process.argv.includes('esbuild');
+
 // Spark system
-processPerseusMarketData();
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  setTimeout(initTwelveDataWebSocket, 2000);
+if (!isBuildProcess) {
+  processPerseusMarketData();
+  if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    setTimeout(initTwelveDataWebSocket, 2000);
+  }
 }
 
 async function _triggerAISignalScanInternal(forceRetry = false): Promise<Signal> {
