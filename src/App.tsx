@@ -247,26 +247,48 @@ export default function App() {
     }
   };
 
-  // Poll live gold spot price, technical metrics, and signals every 5 seconds
+  // Setup WebSocket for ultra-low latency real-time data streaming
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch("/api/market-params");
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.currentQuote) {
-            setMarketParams(data);
-          } else {
-            await fetchLivePriceClientSide();
-          }
-        } else {
-          await fetchLivePriceClientSide();
-        }
-      } catch (err) {
-        console.error("Error fetching live rates, falling back to client-side gold-api:", err);
-        await fetchLivePriceClientSide();
-      }
+    let ws: WebSocket;
+    let wsConnectTimeout: NodeJS.Timeout;
+    
+    const connectWss = () => {
+      // Connect to same origin
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}`;
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+         console.log("Connected to Perseus real-time WebSocket!");
+      };
+      
+      ws.onmessage = (event) => {
+         try {
+           const msg = JSON.parse(event.data);
+           if (msg.type === "SYNC" && msg.data) {
+              setMarketParams(msg.data);
+              // Optimistically update current XAUUSD quote from WebSocket!
+           }
+         } catch(e) {}
+      };
+      
+      ws.onclose = () => {
+         console.log("WebSocket connection dropped, retrying in 3s...");
+         wsConnectTimeout = setTimeout(connectWss, 3000);
+      };
+    };
+    
+    connectWss();
+    
+    return () => {
+       if (ws) ws.close();
+       clearTimeout(wsConnectTimeout);
+    };
+  }, []);
 
+  // Primary API Poll (Slowed down, as WebSockets handle ticking now)
+  useEffect(() => {
+    const fetchSignalsData = async () => {
       try {
         const signalsResponse = await fetch("/api/signals");
         if (signalsResponse.ok) {
@@ -277,13 +299,11 @@ export default function App() {
             setStats(signalsData.stats);
           }
         }
-      } catch (err) {
-        console.error("Error fetching signals data from api:", err);
-      }
+      } catch (err) {}
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 5000); // 5 seconds interval
+    fetchSignalsData();
+    const interval = setInterval(fetchSignalsData, 8000); // Only poll structural signals every 8s now
     return () => clearInterval(interval);
   }, []);
 

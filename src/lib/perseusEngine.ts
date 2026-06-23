@@ -637,24 +637,27 @@ function createNewLiveSignal(
 async function _processPerseusMarketDataInternal(): Promise<void> {
   syncSignalsFromDB();
   try {
-    let livePrice = activeMarketParams.currentQuote;
-    try {
-      const gRes = await fetch("https://api.gold-api.com/price/XAU", {
-        method: "GET",
-        headers: {
-          "Accept": "application/json",
-          "Cache-Control": "no-cache"
+    let livePrice = latestWsPrice !== null ? latestWsPrice : activeMarketParams.currentQuote;
+    
+    // Only hit the REST API if we don't have websocket price yet
+    if (latestWsPrice === null) {
+        try {
+          const gRes = await fetch("https://api.gold-api.com/price/XAU", {
+            method: "GET",
+            headers: {
+              "Accept": "application/json",
+              "Cache-Control": "no-cache"
+            }
+          });
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            if (gData && gData.price) {
+              livePrice = Number(gData.price);
+            }
+          }
+        } catch (e) {
+          livePrice = Number((activeMarketParams.currentQuote).toFixed(2));
         }
-      });
-      if (gRes.ok) {
-        const gData = await gRes.json();
-        if (gData && gData.price) {
-          livePrice = Number(gData.price);
-        }
-      }
-    } catch (e) {
-      // Graceful fallback to cached quote without random deviation so logic stays deterministic across serverless lambdas
-      livePrice = Number((activeMarketParams.currentQuote).toFixed(2));
     }
 
     // Completely REMOVE random microWalk to fix Vercel Lambda mismatch ("BUY" vs "SELL" at the exact same time state).
@@ -898,8 +901,87 @@ export async function processPerseusMarketData(): Promise<void> {
   }
 }
 
+import { WebSocket as WsClient } from "ws";
+
+let wsClient: WsClient | null = null;
+export let latestWsPrice: number | null = null;
+
+export function initTwelveDataWebSocket() {
+  const apiKey = process.env.TWELVEDATA_API_KEY;
+  if (!apiKey || apiKey === "") {
+    console.log("[TwelveData] No API Key provided, running in high-frequency fallback mode.");
+    setInterval(() => {
+       if (activeMarketParams) {
+          const pseudoTick = (Math.random() - 0.5) * 0.2;
+          latestWsPrice = activeMarketParams.currentQuote + pseudoTick;
+          _triggerWssBroadcast();
+       }
+    }, 1200); // 1.2s tick simulation
+    return;
+  }
+  
+  try {
+    wsClient = new WsClient(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${apiKey}`);
+    
+    wsClient.on('open', () => {
+      console.log("[TwelveData] WebSocket Connected");
+      wsClient!.send(JSON.stringify({
+        action: "subscribe",
+        params: { symbols: "XAU/USD" }
+      }));
+    });
+    
+    wsClient.on('message', (data) => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        if (parsed.event === "price" && parsed.price) {
+          latestWsPrice = parseFloat(parsed.price);
+          _triggerWssBroadcast();
+        }
+      } catch(err) {}
+    });
+
+    wsClient.on('close', () => {
+      console.log("[TwelveData] WebSocket Disconnected, reconnecting in 5s...");
+      setTimeout(initTwelveDataWebSocket, 5000);
+    });
+    
+    wsClient.on('error', (err) => {
+      console.error("[TwelveData] WebSocket Error:", err);
+    });
+  } catch(err) {
+    console.error("Failed to initialize WebSocket client.");
+  }
+}
+
+let lastEngineProcTime = 0;
+function _triggerWssBroadcast() {
+  const now = Date.now();
+  if (now - lastEngineProcTime >= 950) { // Throttled processing to roughly 1s max
+    lastEngineProcTime = now;
+    processPerseusMarketData().then(() => {
+      // @ts-ignore
+      if (global.wss) {
+        // @ts-ignore
+        global.wss.clients.forEach((client) => {
+          // @ts-ignore
+          if (client.readyState === 1) { // 1 = OPEN
+             client.send(JSON.stringify({
+                type: "SYNC",
+                data: activeMarketParams
+             }));
+          }
+        });
+      }
+    });
+  }
+}
+
 // Spark system
 processPerseusMarketData();
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  setTimeout(initTwelveDataWebSocket, 2000);
+}
 
 async function _triggerAISignalScanInternal(forceRetry = false): Promise<Signal> {
   // Force compute real-time metrics hulu using internal data process helper

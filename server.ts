@@ -1322,6 +1322,8 @@ app.get("/api/forex-calendar", async (req, res) => {
 });
 
 // Configure Vite middleware and SPA fallback
+import { WebSocketServer, WebSocket } from "ws";
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const viteInstance = await createViteServer({
@@ -1337,8 +1339,18 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Perseus Intelligence server listening on port ${PORT}`);
+  });
+
+  // Setup WebSocket Server for Real-Time Price Streaming
+  const wss = new WebSocketServer({ server });
+  
+  global.wss = wss; // Expose globally for perseusEngine broadcaster
+  
+  wss.on('connection', (ws) => {
+    // Send initial state
+    ws.send(JSON.stringify({ type: "SYNC", data: fetchPerseusMarketParams() }));
   });
 }
 
