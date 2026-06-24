@@ -34,6 +34,21 @@ export default function VIPLockedView({
           localStorage.setItem("perseus_vip_unlocked_type", "temporary");
           localStorage.setItem("perseus_vip_unlocked_time", String(Date.now()));
           localStorage.setItem("perseus_vip_telegram", telegramHandle.trim() || "Telegram_Member");
+
+          const uid = localStorage.getItem("perseus_uid") || "usr-" + Math.random().toString(36).substring(2, 11);
+          localStorage.setItem("perseus_uid", uid);
+          fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              uid,
+              email: localStorage.getItem("perseus_email") || `${uid}@perseus.app`,
+              telegram: telegramHandle.trim() || "Telegram_Member",
+              vipUnlocked: true,
+              vipUnlockedType: "temporary",
+              vipUnlockedTime: Date.now()
+            })
+          }).catch(err => console.warn("Failed to persist user profile:", err));
         }
         onUnlock();
         setIsVerifying(false);
@@ -78,6 +93,21 @@ export default function VIPLockedView({
           localStorage.setItem("perseus_vip_unlocked_type", "permanent");
           localStorage.setItem("perseus_vip_unlocked_time", String(Date.now()));
           localStorage.setItem("perseus_vip_telegram", "LIFETIME_HOLDER");
+
+          const uid = localStorage.getItem("perseus_uid") || "usr-" + Math.random().toString(36).substring(2, 11);
+          localStorage.setItem("perseus_uid", uid);
+          fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              uid,
+              email: localStorage.getItem("perseus_email") || `${uid}@perseus.app`,
+              telegram: "LIFETIME_HOLDER",
+              vipUnlocked: true,
+              vipUnlockedType: "permanent",
+              vipUnlockedTime: Date.now()
+            })
+          }).catch(err => console.warn("Failed to persist user profile:", err));
         }
         onUnlock();
       } else {

@@ -81,6 +81,67 @@ export default function App() {
     localStorage.setItem("perseus_mt5_unlocked", String(isMt5Unlocked));
   }, [isMt5Unlocked]);
 
+  // Dynamic affiliate and VIP profile database integration states
+  const [affiliateCode, setAffiliateCode] = useState<string>("erni777");
+  const [affiliateSignups, setAffiliateSignups] = useState<number>(18);
+  const [affiliateEarnings, setAffiliateEarnings] = useState<number>(540.0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      let uid = localStorage.getItem("perseus_uid");
+      if (!uid) {
+        uid = "usr-" + Math.random().toString(36).substring(2, 11);
+        localStorage.setItem("perseus_uid", uid);
+      }
+      
+      // Load affiliate stats
+      fetch(`/api/affiliates/${uid}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.affiliate) {
+            setAffiliateCode(data.affiliate.code || "erni777");
+            setAffiliateSignups(data.affiliate.signups || 0);
+            setAffiliateEarnings(data.affiliate.earnings || 0.0);
+          } else {
+            // Seed initial stats into central PostgreSQL DB for the user
+            const initialCode = "ref-" + uid.substring(4, 9);
+            setAffiliateCode(initialCode);
+            setAffiliateSignups(18);
+            setAffiliateEarnings(540.0);
+            
+            fetch("/api/affiliates", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: uid,
+                code: initialCode,
+                clicks: 112,
+                signups: 18,
+                earnings: 540.0
+              })
+            }).catch(e => console.warn("Failed to seed affiliate stats:", e));
+          }
+        })
+        .catch(err => console.warn("Failed to load affiliate stats:", err));
+
+      // Load user profile / VIP status
+      fetch(`/api/users/${uid}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.user) {
+            if (data.user.vipUnlocked) {
+              setIsVipUnlocked(true);
+              localStorage.setItem("perseus_vip_unlocked", "true");
+              localStorage.setItem("perseus_vip_unlocked_type", data.user.vipUnlockedType || "permanent");
+              localStorage.setItem("perseus_vip_unlocked_time", String(data.user.vipUnlockedTime || Date.now()));
+              localStorage.setItem("perseus_vip_telegram", data.user.telegram || "LIFETIME_HOLDER");
+            }
+          }
+        })
+        .catch(err => console.warn("Failed to load user profile:", err));
+    }
+  }, []);
+
   // Internationalization translation settings (Idea 6) and Voice speaker settings (Idea 3)
   const [language, setLanguage] = useState<"ID" | "EN">(() => {
     if (typeof window !== "undefined") {
@@ -163,19 +224,25 @@ export default function App() {
   });
   const [activeNotification, setActiveNotification] = useState<PriceAlert | null>(null);
 
-  const currentXauPrice = marketParams?.currentQuote || 4511.56;
+  const currentXauPrice = marketParams?.currentQuote || 2350.00;
 
   // Client-side fallback computation engine to handle serverless or static hostings like Vercel with live price feeds
   const fetchLivePriceClientSide = async () => {
     try {
-      const res = await fetch("https://api.gold-api.com/price/XAU");
+      const res = await fetch(`https://api.gold-api.com/price/XAU?_=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-store"
+        }
+      });
       if (res.ok) {
         const data = await res.json();
-        const price = data.price || 4511.56; // Safe realistic spot price
+        const price = data.price || 2350.00; // Safe realistic spot price
         
         // Generate MarketParams dynamically matching standard multipliers
         const calculatedParams: MarketParams = {
-          oscillatorState: price > 4500 ? "BULLISH STRENGTH" : "NEUTRAL / OVERBOUGHT",
+          oscillatorState: price > 2340 ? "BULLISH STRENGTH" : "NEUTRAL / OVERBOUGHT",
           rsi: Number((48 + (price % 5) * 1.5).toFixed(1)),
           ema20: Number((price - 8.40).toFixed(2)),
           ema50: Number((price - 15.20).toFixed(2)),
@@ -219,9 +286,12 @@ export default function App() {
           setSignalsHistory(data.history);
           setStats(data.stats);
         }
+        if (data && data.marketParams) {
+          setMarketParams(data.marketParams);
+        }
       } else {
         console.warn("Server failed to scan signals. Generating client-side pseudo-signal fallback.");
-        const price = marketParams?.currentQuote || 4511.56;
+        const price = marketParams?.currentQuote || 2350.00;
         const fallbackFallbackSignal: Signal = {
           id: `sig-perseus-live-${Date.now()}-c`,
           symbol: "XAUUSD",
@@ -286,7 +356,7 @@ export default function App() {
     };
   }, []);
 
-  // Primary API Poll (Slowed down, as WebSockets handle ticking now)
+// Primary API Poll (Slowed down, as WebSockets handle ticking now, but fallback to poll if WS fails)
   useEffect(() => {
     const fetchSignalsData = async () => {
       try {
@@ -298,12 +368,15 @@ export default function App() {
             setSignalsHistory(signalsData.history);
             setStats(signalsData.stats);
           }
+          if (signalsData && signalsData.marketParams) {
+             setMarketParams(signalsData.marketParams);
+          }
         }
       } catch (err) {}
     };
 
     fetchSignalsData();
-    const interval = setInterval(fetchSignalsData, 8000); // Only poll structural signals every 8s now
+    const interval = setInterval(fetchSignalsData, 4000); // Polling structural signals and params every 4s
     return () => clearInterval(interval);
   }, []);
 
@@ -466,7 +539,7 @@ export default function App() {
     <div className="min-h-screen bg-[#020204] text-slate-100 flex flex-col font-sans select-none selection:bg-orange-500/30 animated-matrix-grid dot-matrix-overlay terminal-scanlines pb-28 md:pb-32">
       
       {/* Top Tapes stream element */}
-      <TapesHeader currentXau={currentXauPrice} />
+      <TapesHeader currentXau={currentXauPrice} changePercent={marketParams?.priceChangePercent} />
 
       {/* Main Premium Application Header */}
       <header className="w-full bg-[#040407]/95 border-b border-[#14141a] sticky top-0 z-40 backdrop-blur-md">
@@ -1357,12 +1430,12 @@ export default function App() {
                   {/* Copy link bar */}
                   <div className="bg-[#050508] border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3">
                     <span className="font-mono text-xs text-amber-500 truncate flex-1 leading-none pt-0.5">
-                      https://perseus.ai/ref/erni777
+                      https://perseus.ai/ref/{affiliateCode}
                     </span>
                     <button
                       onClick={() => {
                         try {
-                          navigator.clipboard.writeText("https://perseus.ai/ref/erni777");
+                          navigator.clipboard.writeText(`https://perseus.ai/ref/${affiliateCode}`);
                           setCopiedText(true);
                           setTimeout(() => setCopiedText(false), 2000);
                         } catch (e) {
@@ -1388,13 +1461,13 @@ export default function App() {
                   {/* Referral Stats Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">MITRA TERDAFTAR</div>
-                      <div className="font-display font-black text-white text-base mt-1">18 Anggota</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-mono font-bold">MITRA TERDAFTAR</div>
+                      <div className="font-display font-black text-white text-base mt-1">{affiliateSignups} Anggota</div>
                       <div className="text-[9px] text-[#00ff66] font-mono mt-0.5">Sinyal lancar & aktif</div>
                     </div>
                     <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
                       <div className="text-[10px] text-gray-500 uppercase tracking-widest font-mono font-bold">TOTAL KOMISI</div>
-                      <div className="font-display font-black text-amber-500 text-base mt-1">$540.00 USD</div>
+                      <div className="font-display font-black text-amber-500 text-base mt-1">${affiliateEarnings.toFixed(2)} USD</div>
                       <div className="text-[9px] text-slate-500 font-mono mt-0.5 font-bold">Tarik instan cair</div>
                     </div>
                   </div>

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 dotenv.config();
 
@@ -29,9 +29,9 @@ const aiScanLimiter = rateLimit({
   message: { success: false, error: "Tingkat rate-limit tercapai. Mohon tunggu sebelum meminta pemindaian AI lagi." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
+  validate: { xForwardedForHeader: false, trustProxy: false },
   keyGenerator: (req) => {
-    return (req.headers['x-forwarded-for'] as string) || (req.headers['forwarded'] as string) || req.ip || "unknown";
+    return ipKeyGenerator(req.headers['x-forwarded-for'] as string || req.headers['forwarded'] as string || req.ip || "unknown");
   }
 });
 
@@ -75,28 +75,19 @@ interface BotConfig {
   executionLogs: Array<{ time: string; type: string; message: string }>;
 }
 
-import { db, doc, getDoc, setDoc } from "./src/lib/firebase-server";
+import { dbGetBotConfig, dbSaveBotConfig } from "./src/lib/db";
 
 // In-memory cache
 let cachedBotConfig: BotConfig | null = null;
 
 async function syncBotConfigFromFirestore() {
-  if (!db) return;
   try {
-    const docRef = doc(db, "botConfigs", "master");
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data() as BotConfig;
-      cachedBotConfig = { ...defaultConfig(), ...data };
-      if (process.env.TELEGRAM_BOT_TOKEN) cachedBotConfig!.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
-      if (process.env.TELEGRAM_CHAT_ID) cachedBotConfig!.telegramChatId = process.env.TELEGRAM_CHAT_ID;
-    }
+    const data = await dbGetBotConfig("master");
+    cachedBotConfig = { ...defaultConfig(), ...data };
+    if (process.env.TELEGRAM_BOT_TOKEN) cachedBotConfig!.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (process.env.TELEGRAM_CHAT_ID) cachedBotConfig!.telegramChatId = process.env.TELEGRAM_CHAT_ID;
   } catch (e: any) {
-    if (e.message && e.message.includes("permission")) {
-      console.warn("Firestore rules not fully unlocked for botConfigs. Using local memory config cache.");
-    } else {
-      console.error("Error reading botConfigs from Firestore:", e);
-    }
+    console.error("Error reading botConfigs from DB:", e?.message);
   }
 }
 
@@ -122,15 +113,12 @@ function loadBotConfig(): BotConfig {
 
 function saveBotConfig(config: BotConfig) {
   cachedBotConfig = { ...config };
-  if (db) {
-    setDoc(doc(db, "botConfigs", "master"), config).catch((e: any) => {
-      if (e.message && e.message.includes("permission")) {
-        console.warn("Firestore rules not fully unlocked. Saved strictly to local memory until database setup is completed.");
-      } else {
-        console.error("Firestore save error:", e);
-      }
-    });
-  }
+  
+  // Directly save to PostgreSQL / Fallback JSON database immediately without throttling,
+  // since database storage has no strict quota constraints like Firestore free-tier!
+  dbSaveBotConfig("master", config).catch((e: any) => {
+    console.error("Error saving botConfig to DB:", e?.message || e);
+  });
 }
 
 
@@ -152,6 +140,16 @@ const instantiateGeminiClient = () => {
 
 const app = express();
 app.set("trust proxy", 1);
+
+// Prevent caching on the Edge for Serverless/Cloudflare Workers
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+  next();
+});
+
 app.use(express.json());
 
 const PORT = 3000;
@@ -320,8 +318,8 @@ function startBackgroundWorkers() {
   setInterval(async () => {
     try {
       if (serverLastHistoryCount === -1) {
-        const active = fetchPerseusLiveSignal();
-        const history = fetchPerseusHistorySignals();
+        const active = await fetchPerseusLiveSignal();
+        const history = await fetchPerseusHistorySignals();
         serverLastActiveSignalId = active ? active.id : "";
         serverLastActiveTp1Hit = active ? !!active.tp1Hit : false;
         serverLastHistoryCount = history ? history.length : 0;
@@ -329,8 +327,8 @@ function startBackgroundWorkers() {
 
       await processPerseusMarketData();
 
-      const nextActive = fetchPerseusLiveSignal();
-      const nextHistory = fetchPerseusHistorySignals();
+      const nextActive = await fetchPerseusLiveSignal();
+      const nextHistory = await fetchPerseusHistorySignals();
 
       if (nextActive && nextActive.id !== "sig-perseus-initial" && nextActive.id !== serverLastActiveSignalId) {
         serverLastActiveSignalId = nextActive.id;
@@ -397,12 +395,13 @@ app.get("/api/market-params", async (req, res) => {
 // Endpoint delivering active signals and backtest stats
 app.get("/api/signals", async (req, res) => {
   await processPerseusMarketDataOnRequest();
-  const active = fetchPerseusLiveSignal();
-  const history = fetchPerseusHistorySignals();
+  const active = await fetchPerseusLiveSignal();
+  const history = await fetchPerseusHistorySignals();
   
   res.json({
     active,
     history,
+    marketParams: fetchPerseusMarketParams(),
     stats: {
       totalTrades: history.length,
       winRate: Math.round((history.filter(s => s.status === "WIN").length / history.length) * 100) || 78,
@@ -445,7 +444,7 @@ app.post("/api/bot-config", authenticateToken, (req: any, res: any) => {
 app.get("/api/mt5/signals", async (req, res) => {
   await processPerseusMarketDataOnRequest();
   const config = loadBotConfig();
-  const active = fetchPerseusLiveSignal();
+  const active = await fetchPerseusLiveSignal();
   
   if (!config.botEnabled) {
     return res.json({
@@ -712,11 +711,12 @@ Uraikan ulasan dalam Bahasa Indonesia yang profesional dan tajam sebanyak 2-3 pa
       }
     }
 
-    const history = fetchPerseusHistorySignals();
+    const history = await fetchPerseusHistorySignals();
     res.json({
       success: true,
       active: rawSignal,
       history,
+      marketParams: fetchPerseusMarketParams(),
       stats: {
         totalTrades: history.length,
         winRate: Math.round((history.filter(s => s.status === "WIN").length / history.length) * 100) || 78,
@@ -743,8 +743,8 @@ app.get("/api/cron", async (req, res) => {
     }
 
     if (serverLastHistoryCount === -1) {
-      const active = fetchPerseusLiveSignal();
-      const history = fetchPerseusHistorySignals();
+      const active = await fetchPerseusLiveSignal();
+      const history = await fetchPerseusHistorySignals();
       serverLastActiveSignalId = active ? active.id : "";
       serverLastActiveTp1Hit = active ? !!active.tp1Hit : false;
       serverLastHistoryCount = history ? history.length : 0;
@@ -788,8 +788,8 @@ app.get("/api/cron", async (req, res) => {
       console.error("News check failed in cron", e);
     }
 
-    const nextActive = fetchPerseusLiveSignal();
-    const nextHistory = fetchPerseusHistorySignals();
+    const nextActive = await fetchPerseusLiveSignal();
+    const nextHistory = await fetchPerseusHistorySignals();
     let eventHappened = false;
     let bNew = false;
     let bTp1 = false;
@@ -1310,6 +1310,171 @@ app.get("/api/forex-calendar", async (req, res) => {
   } catch (error: any) {
     console.error("Error fetching live economic calendar:", error);
     res.status(200).json({ success: true, events: [], source: "fallback-safe" });
+  }
+});
+
+// --- CENTRALIZED BUSINESS API ENDPOINTS (PostgreSQL / Fallback JSON backed) ---
+import {
+  dbGetUser,
+  dbSaveUser,
+  dbGetAllUsers,
+  dbGetAffiliate,
+  dbSaveAffiliate,
+  dbGetAllAffiliates,
+  dbGetPayment,
+  dbSavePayment,
+  dbGetAllPayments
+} from "./src/lib/db";
+
+// USERS ENDPOINTS
+app.get("/api/users", async (req, res) => {
+  try {
+    const users = await dbGetAllUsers();
+    res.json({ success: true, users });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/users/:uid", async (req, res) => {
+  try {
+    const user = await dbGetUser(req.params.uid);
+    res.json({ success: true, user });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/users", async (req, res) => {
+  try {
+    const { uid, email, telegram, vipUnlocked, vipUnlockedType, vipUnlockedTime } = req.body;
+    if (!uid) {
+      return res.status(400).json({ success: false, error: "Missing uid parameter" });
+    }
+    const existing = await dbGetUser(uid);
+    const user = {
+      uid,
+      email: email !== undefined ? email : (existing?.email || ""),
+      telegram: telegram !== undefined ? telegram : (existing?.telegram || ""),
+      vipUnlocked: vipUnlocked !== undefined ? vipUnlocked : (existing?.vipUnlocked || false),
+      vipUnlockedType: vipUnlockedType !== undefined ? vipUnlockedType : (existing?.vipUnlockedType || "none"),
+      vipUnlockedTime: vipUnlockedTime !== undefined ? Number(vipUnlockedTime) : (existing?.vipUnlockedTime || 0),
+      createdAt: existing?.createdAt || Date.now()
+    };
+    await dbSaveUser(user);
+    res.json({ success: true, user });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// VIP REGISTRATION & PAYMENTS ENDPOINTS
+app.post("/api/vip/register", async (req, res) => {
+  try {
+    const { uid, email, telegram, name, plan } = req.body;
+    if (!uid) {
+      return res.status(400).json({ success: false, error: "Missing uid" });
+    }
+    // Update user profile details
+    const existing = await dbGetUser(uid);
+    const user = {
+      uid,
+      email: email || (existing?.email || ""),
+      telegram: telegram || (existing?.telegram || ""),
+      vipUnlocked: existing?.vipUnlocked || false,
+      vipUnlockedType: plan || (existing?.vipUnlockedType || "none"),
+      vipUnlockedTime: existing?.vipUnlockedTime || 0,
+      createdAt: existing?.createdAt || Date.now()
+    };
+    await dbSaveUser(user);
+
+    // Create a pending payment
+    const paymentId = "pay-" + Math.random().toString(36).substr(2, 9);
+    const amount = plan === "starter" ? 99 : plan === "pro-ai" ? 199 : 499;
+    const payment = {
+      id: paymentId,
+      userId: uid,
+      amount,
+      status: "pending" as const,
+      plan,
+      createdAt: Date.now()
+    };
+    await dbSavePayment(payment);
+
+    res.json({ success: true, user, payment });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// AFFILIATES ENDPOINTS
+app.get("/api/affiliates", async (req, res) => {
+  try {
+    const affiliates = await dbGetAllAffiliates();
+    res.json({ success: true, affiliates });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get("/api/affiliates/:userId", async (req, res) => {
+  try {
+    const record = await dbGetAffiliate(req.params.userId);
+    res.json({ success: true, affiliate: record });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/affiliates", async (req, res) => {
+  try {
+    const { userId, code, clicks, signups, earnings } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "Missing userId" });
+    }
+    const existing = await dbGetAffiliate(userId);
+    const record = {
+      userId,
+      code: code !== undefined ? code : (existing?.code || ""),
+      clicks: clicks !== undefined ? Number(clicks) : (existing?.clicks || 0),
+      signups: signups !== undefined ? Number(signups) : (existing?.signups || 0),
+      earnings: earnings !== undefined ? Number(earnings) : (existing?.earnings || 0.0)
+    };
+    await dbSaveAffiliate(record);
+    res.json({ success: true, affiliate: record });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PAYMENTS ENDPOINTS
+app.get("/api/payments", async (req, res) => {
+  try {
+    const payments = await dbGetAllPayments();
+    res.json({ success: true, payments });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/payments", async (req, res) => {
+  try {
+    const { id, userId, amount, status, plan } = req.body;
+    if (!id || !userId) {
+      return res.status(400).json({ success: false, error: "Missing id or userId" });
+    }
+    const payment = {
+      id,
+      userId,
+      amount: Number(amount || 0),
+      status: status || "pending",
+      plan: plan || "",
+      createdAt: Date.now()
+    };
+    await dbSavePayment(payment);
+    res.json({ success: true, payment });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

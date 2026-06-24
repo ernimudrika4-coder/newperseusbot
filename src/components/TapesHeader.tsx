@@ -9,9 +9,9 @@ interface TickerData {
   isPositive: boolean;
 }
 
-export default function TapesHeader({ currentXau }: { currentXau: number }) {
+export default function TapesHeader({ currentXau, changePercent }: { currentXau: number, changePercent?: number }) {
   const [tickers, setTickers] = useState<TickerData[]>([
-    { symbol: "XAUUSD", name: "Gold Spot", price: 4417.30, change: 0.33, isPositive: true },
+    { symbol: "XAUUSD", name: "Gold Spot", price: 2350.00, change: 0.33, isPositive: true },
     { symbol: "EURUSD", name: "Euro / US Dollar", price: 1.0852, change: -0.12, isPositive: false },
     { symbol: "BTCUSD", name: "Bitcoin", price: 68420.00, change: 1.45, isPositive: true },
     { symbol: "DXY", name: "US Dollar Index", price: 103.95, change: -0.22, isPositive: false },
@@ -24,17 +24,17 @@ export default function TapesHeader({ currentXau }: { currentXau: number }) {
   useEffect(() => {
     setTickers(prev => prev.map(t => {
       if (t.symbol === "XAUUSD") {
-        const percentChange = ((currentXau - 4410.00) / 4410.00) * 100;
+        const actualChange = changePercent !== undefined ? changePercent : ((currentXau - 2350.0) / 2350.0) * 100;
         return {
           ...t,
           price: currentXau,
-          change: Number(percentChange.toFixed(2)),
-          isPositive: currentXau >= 4410.00
+          change: Number(actualChange.toFixed(2)),
+          isPositive: actualChange >= 0
         };
       }
       return t;
     }));
-  }, [currentXau]);
+  }, [currentXau, changePercent]);
 
   return (
     <div className="w-full bg-[#0a0c10] border-b border-[#1f2633] text-xs font-mono text-gray-400 py-2 overflow-hidden select-none">

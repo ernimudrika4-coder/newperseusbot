@@ -1,0 +1,38 @@
+{
+  "activeLiveSignal": {
+    "id": "sig-perseus-initial",
+    "symbol": "XAUUSD",
+    "type": "BUY",
+    "timeframe": "M15",
+    "time": 1782212690553,
+    "entryPrice": 2350.00,
+    "stopLoss": 2345.20,
+    "takeProfit1": 2355.50,
+    "takeProfit2": 2361.50,
+    "takeProfit3": 2368.00,
+    "status": "ACTIVE",
+    "pips": 0,
+    "confidence": 90,
+    "strategy": "Perseus SMC Order Block & Liquidity Wick Grab",
+    "commentary": "Sistem menginisiasi integrasi umpan data real-time..."
+  },
+  "activeHistorySignals": [
+    {
+      "id": "sig-perseus-static-1",
+      "symbol": "XAUUSD",
+      "type": "BUY",
+      "timeframe": "M15",
+      "time": 1782212680553,
+      "entryPrice": 2345.20,
+      "stopLoss": 2340.40,
+      "takeProfit1": 2350.70,
+      "takeProfit2": 2356.70,
+      "takeProfit3": 2363.20,
+      "status": "WIN",
+      "pips": 115,
+      "confidence": 88,
+      "strategy": "Perseus SMC Order Block Limit & Liquidity Grab",
+      "commentary": "SMC Sniper Entry tervalidasi pada pemantulan di extreme Discount Zone harian. Reaksi instan menghasilkan zero floating dan meluncur deras menggapai TP2 senilai +115 pips."
+    }
+  ]
+}

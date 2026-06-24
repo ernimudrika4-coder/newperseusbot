@@ -57,7 +57,33 @@ export default function VIPView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.telegram.trim()) return;
-    setSubmitted(true);
+    
+    const uid = localStorage.getItem("perseus_uid") || "usr-" + Math.random().toString(36).substring(2, 11);
+    localStorage.setItem("perseus_uid", uid);
+    if (formData.email) {
+      localStorage.setItem("perseus_email", formData.email);
+    }
+    
+    fetch("/api/vip/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid,
+        name: formData.name,
+        email: formData.email || `${uid}@perseus.app`,
+        telegram: formData.telegram,
+        plan: formData.plan
+      })
+    })
+    .then((res) => res.json())
+    .then((data) => {
+      console.log("[VIP Registration] Successfully registered via PostgreSQL database API:", data);
+      setSubmitted(true);
+    })
+    .catch((err) => {
+      console.error("[VIP Registration] API registration failed, falling back gracefully to local client state:", err);
+      setSubmitted(true);
+    });
   };
 
   const plansMeta = {

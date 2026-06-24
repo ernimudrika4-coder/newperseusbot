@@ -36,7 +36,7 @@ export default function AIAnalysisView({ marketParams }: AIAnalysisViewProps) {
 
   // Local Indonesian intelligent heuristic expert fallback generator
   const generateHeuristicAnalysis = (userPrompt: string): string => {
-    const price = marketParams?.currentQuote || 4511.56;
+    const price = marketParams?.currentQuote || 2350.00;
     const rsi = marketParams?.rsi || 52.4;
     const ema20 = marketParams?.ema20 || (price - 8.4);
     const spread = marketParams?.spread || 0.30;

@@ -56,8 +56,8 @@ function apiServerPlugin() {
         }
 
         if (url.startsWith('/api/signals')) {
-          const active = fetchPerseusLiveSignal();
-          const history = fetchPerseusHistorySignals();
+          const active = await fetchPerseusLiveSignal();
+          const history = await fetchPerseusHistorySignals();
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             active,

@@ -567,7 +567,7 @@ export default function HomeView({ onNavigate, currentXau, activeSignal, languag
         try {
           homeWidgetRef.current = new (window as any).TradingView.widget({
             autosize: true,
-            symbol: "FX_IDC:XAUUSD",
+            symbol: "OANDA:XAUUSD",
             interval: "15",
             timezone: "Asia/Jakarta",
             theme: "dark",

@@ -48,10 +48,10 @@ export default function LiveChartView() {
   const [activeTab, setActiveTab] = useState<"ai-overlay" | "clean">("ai-overlay");
 
   // Real spot quote tracking fetched from server
-  const [spotPrice, setSpotPrice] = useState<number>(4511.56);
+  const [spotPrice, setSpotPrice] = useState<number>(2350.00);
   const [priceChange, setPriceChange] = useState<"up" | "down" | "flat">("flat");
-  const [dailyHigh, setDailyHigh] = useState<number>(4522.50);
-  const [dailyLow, setDailyLow] = useState<number>(4491.20);
+  const [dailyHigh, setDailyHigh] = useState<number>(2362.50);
+  const [dailyLow, setDailyLow] = useState<number>(2331.20);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any>(null);
@@ -208,7 +208,7 @@ export default function LiveChartView() {
         try {
           widgetRef.current = new (window as any).TradingView.widget({
             autosize: true,
-            symbol: "FX_IDC:XAUUSD",
+            symbol: "OANDA:XAUUSD",
             interval: tvInterval,
             timezone: "Asia/Jakarta",
             theme: theme === "dark" ? "dark" : "light",
