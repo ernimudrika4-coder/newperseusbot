@@ -73,6 +73,7 @@ interface BotConfig {
   telegramChatId: string;
   lastUpdateId: number;
   executionLogs: Array<{ time: string; type: string; message: string }>;
+  riskProfile?: "CONSERVATIVE" | "BALANCED" | "TACTICAL";
 }
 
 import { dbGetBotConfig, dbSaveBotConfig } from "./src/lib/db";
@@ -99,7 +100,8 @@ function defaultConfig(): BotConfig {
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
     telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
     lastUpdateId: 0,
-    executionLogs: []
+    executionLogs: [],
+    riskProfile: "BALANCED"
   };
 }
 

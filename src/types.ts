@@ -16,6 +16,17 @@ export interface Signal {
   commentary: string;
   tp1Hit?: boolean;
   tp2Hit?: boolean;
+  
+  // Dynamic Volatility-adjusted target levels per risk profile
+  slConservative?: number;
+  tp1Conservative?: number;
+  tp2Conservative?: number;
+  slBalanced?: number;
+  tp1Balanced?: number;
+  tp2Balanced?: number;
+  slTactical?: number;
+  tp1Tactical?: number;
+  tp2Tactical?: number;
 }
 
 export interface QuantParams {

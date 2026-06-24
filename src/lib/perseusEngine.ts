@@ -33,6 +33,17 @@ export interface Signal {
   commentary: string;
   tp1Hit?: boolean;
   tp2Hit?: boolean;
+  
+  // Dynamic Volatility-adjusted target levels per risk profile
+  slConservative?: number;
+  tp1Conservative?: number;
+  tp2Conservative?: number;
+  slBalanced?: number;
+  tp1Balanced?: number;
+  tp2Balanced?: number;
+  slTactical?: number;
+  tp1Tactical?: number;
+  tp2Tactical?: number;
 }
 
 export interface MarketParams {
@@ -322,7 +333,7 @@ export async function loadSignalsFromDB(): Promise<{ active: Signal | null; hist
     const { dbGetSignals } = await import("./db.js");
     const data = await dbGetSignals();
     if (data.activeLiveSignal || (data.activeHistorySignals && data.activeHistorySignals.length > 0)) {
-      return { active: data.activeLiveSignal, history: data.activeHistorySignals };
+      return { active: data.activeLiveSignal as any, history: data.activeHistorySignals as any };
     }
   } catch (err) {
     console.error("[Perseus DB] Error reading signals database from Database engine, falling back to local file:", err);
@@ -373,7 +384,7 @@ export async function saveSignalsToDB(active: Signal, history: Signal[], force =
   // Save to modern central database engine (PostgreSQL on Railway / fallback JSON)
   try {
     const { dbSaveSignals } = await import("./db.js");
-    await dbSaveSignals(active, history);
+    await dbSaveSignals(active as any, history as any);
     console.log("[Perseus DB] Successfully synchronized signal state with Database engine.");
   } catch (err: any) {
     console.error("[Perseus DB] Error writing signals database to Database engine:", err?.message || err);
@@ -479,7 +490,8 @@ function generatePerseusParams(prevPrice: number): MarketParams {
 
 function createNewLiveSignal(
   price: number,
-  candles: Candle[]
+  candles: Candle[],
+  quant?: QuantParams
 ): Signal {
   const activeCandles = candles && candles.length > 0 ? candles : [];
   const currentClose = price;
@@ -494,11 +506,13 @@ function createNewLiveSignal(
   const bb = calculateBollingerBands(closePointsList, 20, 2);
   const vwap = calculateVWAP(activeCandles); 
   const stoch = calculateStochastic(highPointsList, lowPointsList, closePointsList, 14, 3, 3);
+  const fullAtr = calculateATR(highPointsList, lowPointsList, closePointsList, 14);
   
   const rsi = fullRsi.length > 0 ? fullRsi[fullRsi.length - 1] : 50;
   const ema50 = fullEma50.length > 0 ? fullEma50[fullEma50.length - 1] : currentClose;
   const ema200 = fullEma200.length > 0 ? fullEma200[fullEma200.length - 1] : currentClose;
   const currentVWAP = vwap.length > 0 ? vwap[vwap.length - 1] : currentClose;
+  const atr = fullAtr.length > 0 ? fullAtr[fullAtr.length - 1] : 2.5; // ATR-based volatility tracker
   
   const bbUpper = bb.upper.length > 0 ? bb.upper[bb.upper.length - 1] : currentClose;
   const bbLower = bb.lower.length > 0 ? bb.lower[bb.lower.length - 1] : currentClose;
@@ -523,6 +537,9 @@ function createNewLiveSignal(
   const isTrendBullish = ema50 > ema200;
   const isTrendBearish = ema50 < ema200;
 
+  // Generate real quant metrics fallback if not passed directly
+  const metrics = quant || generateQuantMetrics(activeCandles, currentClose);
+
   // ----------------------------------------------------
   // MULTI-CRITERIA COGNITIVE SCANNING & RANKING ENGINE (ANTI-NO-SETUP)
   // ----------------------------------------------------
@@ -535,65 +552,76 @@ function createNewLiveSignal(
     isTechnicallyValid: boolean;
     strategy: string;
     commentary: string;
+    category: "ELITE" | "FALLBACK";
+    rankingScore?: number;
   }
 
   const candidates: CandidateSetup[] = [];
 
-  // 1. Liquidity Sweep SMC (Sweep Highs/Lows)
-  const sweptLows = currentClose > swingLow && currentClose < swingLow + 2.5 && isGreenCandle;
-  const sweptHighs = currentClose < swingHigh && currentClose > swingHigh - 2.5 && isRedCandle;
+  // 1. SMC Liquidity Sweep (Bullish / Bearish Wick Grabs) - HIGH-PROBABILITY INSTITUTIONAL COUPLING
+  // Verifikasi sapuan likuiditas riil: harga menyapu di bawah swing low dan memantul kembali ke atas.
+  const didSweepLow = activeCandles.slice(-4).some(c => c.low < swingLow);
+  const sweptLows = didSweepLow && currentClose > swingLow && currentClose < (swingLow + 1.2 * atr) && isGreenCandle;
+
+  const didSweepHigh = activeCandles.slice(-4).some(c => c.high > swingHigh);
+  const sweptHighs = didSweepHigh && currentClose < swingHigh && currentClose > (swingHigh - 1.2 * atr) && isRedCandle;
   
   candidates.push({
     name: "SMC Liquidity Sweep (BUY)",
     type: "BUY",
     entryPrice: currentClose,
-    stopLoss: swingLow - 2.0,
-    baseConfidence: 97,
+    stopLoss: swingLow - (1.0 * atr), // Volatility-adjusted stop loss
+    baseConfidence: 96,
     isTechnicallyValid: sweptLows,
     strategy: "SMC Liquidity Sweep + MSS (BUY)",
-    commentary: `Institusi menyapu likuiditas ritel (Stop Loss) di batas Low harian ($${swingLow.toFixed(2)}) (Sweep Licks). Struktur market patah naik (MSS), divalidasi retest zona demand ZERO FLOATING.`
+    commentary: `Institusi menyapu likuiditas ritel (Stop Loss) di batas Low harian ($${swingLow.toFixed(2)}) (Sweep Licks). Struktur market patah naik (MSS), divalidasi retest zona demand ZERO FLOATING.`,
+    category: "ELITE"
   });
 
   candidates.push({
     name: "SMC Liquidity Sweep (SELL)",
     type: "SELL",
     entryPrice: currentClose,
-    stopLoss: swingHigh + 2.0,
-    baseConfidence: 97,
+    stopLoss: swingHigh + (1.0 * atr),
+    baseConfidence: 96,
     isTechnicallyValid: sweptHighs,
     strategy: "SMC Liquidity Sweep + MSS (SELL)",
-    commentary: `Institusi menyapu likuiditas pembeli (Stop Loss) melampaui Swing High harian ($${swingHigh.toFixed(2)}) (Sweep Licks). Struktur berbalik turun tajam (MSS), pertahanan supply kokoh.`
+    commentary: `Institusi menyapu likuiditas pembeli (Stop Loss) melampaui Swing High harian ($${swingHigh.toFixed(2)}) (Sweep Licks). Struktur berbalik turun tajam (MSS), pertahanan supply kokoh.`,
+    category: "ELITE"
   });
 
-  // 2. SMC Mitigated Order Block (OB) Retest
-  const isObBuy = currentClose > swingLow && currentClose <= swingLow + 3.5 && isTrendBullish;
-  const isObSell = currentClose < swingHigh && currentClose >= swingHigh - 3.5 && isTrendBearish;
+  // 2. SMC Mitigated Order Block (OB) Retest - INSTITUTIONAL RE-ENTRY POINT
+  // Deteksi retest zona demand/supply utama yang presisi dan belum dimitigasi sepenuhnya.
+  const isObBuy = isTrendBullish && currentClose >= swingLow && currentClose <= (swingLow + 0.8 * atr);
+  const isObSell = isTrendBearish && currentClose <= swingHigh && currentClose >= (swingHigh - 0.8 * atr);
 
   candidates.push({
     name: "SMC Order Block Retest (BUY)",
     type: "BUY",
     entryPrice: currentClose,
-    stopLoss: swingLow - 1.5,
-    baseConfidence: 95,
+    stopLoss: swingLow - (0.8 * atr),
+    baseConfidence: 94,
     isTechnicallyValid: isObBuy,
     strategy: "SMC Mitigated Order Block Retest (BUY)",
-    commentary: `Mitigasi zona demand institusional terdekat ($${swingLow.toFixed(2)}). Struktur tren bullish solid menyaring aliran order buy untuk kelanjutan kenaikan.`
+    commentary: `Mitigasi zona demand institusional terdekat ($${swingLow.toFixed(2)}). Struktur tren bullish solid menyaring aliran order buy untuk kelanjutan kenaikan.`,
+    category: "ELITE"
   });
 
   candidates.push({
     name: "SMC Order Block Retest (SELL)",
     type: "SELL",
     entryPrice: currentClose,
-    stopLoss: swingHigh + 1.5,
-    baseConfidence: 95,
+    stopLoss: swingHigh + (0.8 * atr),
+    baseConfidence: 94,
     isTechnicallyValid: isObSell,
     strategy: "SMC Mitigated Order Block Retest (SELL)",
-    commentary: `Mitigasi zona supply institusional terdekat ($${swingHigh.toFixed(2)}). Aliran order bear bertekanan tinggi melindungi zona premium.`
+    commentary: `Mitigasi zona supply institusional terdekat ($${swingHigh.toFixed(2)}). Aliran order bear bertekanan tinggi melindungi zona premium.`,
+    category: "ELITE"
   });
 
-  // 3. Fibonacci Golden Zone Crossover
-  const inFiboBuyZone = currentClose <= fibo050 && currentClose >= fibo0618;
-  const inFiboSellZone = currentClose >= fibo050 && currentClose <= fibo0618;
+  // 3. Fibonacci Golden Zone Crossover - HARMONIC PIVOT
+  const inFiboBuyZone = currentClose <= fibo050 && currentClose >= (fibo0618 - 0.3 * atr);
+  const inFiboSellZone = currentClose >= fibo050 && currentClose <= (fibo0618 + 0.3 * atr);
   const isFiboBuy = isTrendBullish && inFiboBuyZone;
   const isFiboSell = isTrendBearish && inFiboSellZone;
 
@@ -601,188 +629,145 @@ function createNewLiveSignal(
     name: "Fibonacci Golden Ratio (BUY)",
     type: "BUY",
     entryPrice: currentClose,
-    stopLoss: fibo0786_Buy - 1.0,
-    baseConfidence: 96,
+    stopLoss: fibo0786_Buy - (0.5 * atr),
+    baseConfidence: 93,
     isTechnicallyValid: isFiboBuy,
     strategy: "Fibonacci Golden Zone Crossover (BUY)",
-    commentary: `Retracement sehat menuju Golden Ratio 0.618 - 0.500 ($${fibo0618.toFixed(2)}). EMA50 berada di atas EMA200 menegaskan kelanjutan tren naik.`
+    commentary: `Retracement sehat menuju Golden Ratio 0.618 - 0.500 ($${fibo0618.toFixed(2)}). EMA50 berada di atas EMA200 menegaskan kelanjutan tren naik.`,
+    category: "ELITE"
   });
 
   candidates.push({
     name: "Fibonacci Golden Ratio (SELL)",
     type: "SELL",
     entryPrice: currentClose,
-    stopLoss: fibo0786_Sell + 1.0,
-    baseConfidence: 96,
+    stopLoss: fibo0786_Sell + (0.5 * atr),
+    baseConfidence: 93,
     isTechnicallyValid: isFiboSell,
     strategy: "Fibonacci Golden Zone Crossover (SELL)",
-    commentary: `Penaikan korektif minor menemui batas kelelahan tepat di zona Golden Ratio 0.500 - 0.618 ($${fibo050.toFixed(2)}). Bear dominan EMA50 melindungi batas risiko.`
+    commentary: `Penaikan korektif minor menemui batas kelelahan tepat di zona Golden Ratio 0.500 - 0.618 ($${fibo050.toFixed(2)}). Bear dominan EMA50 melindungi batas risiko.`,
+    category: "ELITE"
   });
 
-  // 4. VWAP Rejection + Momentum
+  // 4. VWAP Rejection + Institutional Average Price Defence
   const touchVwapDist = Math.abs(currentClose - currentVWAP) / currentVWAP;
-  const isVwapBuy = currentClose > currentVWAP && touchVwapDist < 0.002 && isGreenCandle;
-  const isVwapSell = currentClose < currentVWAP && touchVwapDist < 0.002 && isRedCandle;
+  const isVwapBuy = currentClose > currentVWAP && touchVwapDist < 0.0015 && isGreenCandle;
+  const isVwapSell = currentClose < currentVWAP && touchVwapDist < 0.0015 && isRedCandle;
 
   candidates.push({
     name: "VWAP Rejection (BUY)",
     type: "BUY",
     entryPrice: currentClose,
-    stopLoss: currentVWAP - 2.5,
-    baseConfidence: 94,
+    stopLoss: currentVWAP - (0.8 * atr),
+    baseConfidence: 92,
     isTechnicallyValid: isVwapBuy,
     strategy: "VWAP Rejection + Momentum (BUY)",
-    commentary: `Harga menolak turun di bawah harga rata-rata institusi VWAP ($${currentVWAP.toFixed(2)}). Pembeli menyerap pasokan pasar harian.`
+    commentary: `Harga menolak turun di bawah harga rata-rata institusi VWAP ($${currentVWAP.toFixed(2)}). Pembeli menyerap pasokan pasar harian.`,
+    category: "ELITE"
   });
 
   candidates.push({
     name: "VWAP Rejection (SELL)",
     type: "SELL",
     entryPrice: currentClose,
-    stopLoss: currentVWAP + 2.5,
-    baseConfidence: 94,
+    stopLoss: currentVWAP + (0.8 * atr),
+    baseConfidence: 92,
     isTechnicallyValid: isVwapSell,
     strategy: "VWAP Rejection + Momentum (SELL)",
-    commentary: `Reaksi penolakan harga pada area resistensi rata-rata institusi VWAP ($${currentVWAP.toFixed(2)}). Smart money mempertahankan zona premium.`
+    commentary: `Reaksi penolakan harga pada area resistensi rata-rata institusi VWAP ($${currentVWAP.toFixed(2)}). Smart money mempertahankan zona premium.`,
+    category: "ELITE"
   });
 
-  // 5. Bollinger Extremes + RSI Divergence
-  const isBBBuy = currentClose <= bbLower && rsi < 45;
-  const isBBSell = currentClose >= bbUpper && rsi > 55;
-
-  candidates.push({
-    name: "Bollinger Extreme Reversion (BUY)",
-    type: "BUY",
-    entryPrice: currentClose,
-    stopLoss: bbLower - 2.5,
-    baseConfidence: 92,
-    isTechnicallyValid: isBBBuy,
-    strategy: "Bollinger Extremes + RSI Divergence (BUY)",
-    commentary: `Harga terlempar melampaui Lower Bollinger Band ($${bbLower.toFixed(2)}) dengan RSI jenuh jual. Potensi pantulan mean reversion instan.`
-  });
-
-  candidates.push({
-    name: "Bollinger Extreme Reversion (SELL)",
-    type: "SELL",
-    entryPrice: currentClose,
-    stopLoss: bbUpper + 2.5,
-    baseConfidence: 92,
-    isTechnicallyValid: isBBSell,
-    strategy: "Bollinger Extremes + RSI Divergence (SELL)",
-    commentary: `Harga meluber ke atas melampaui Upper Bollinger Band ($${bbUpper.toFixed(2)}) dengan RSI jenuh beli. Koreksi turun gravitasi ke garis tengah.`
-  });
-
-  // 6. Support / Resistance POI (Always valid backups to guarantee continuous trading plans!)
+  // 5. POI Support / Resistance POI (Always valid backups to guarantee continuous trading plans!)
   candidates.push({
     name: "POI Support Bounce (BUY)",
     type: "BUY",
     entryPrice: currentClose,
-    stopLoss: swingLow - 2.0,
-    baseConfidence: 89,
-    isTechnicallyValid: true, // Always eligible backup
+    stopLoss: swingLow - (1.0 * atr),
+    baseConfidence: 85,
+    isTechnicallyValid: true, // Always eligible backup to avoid no-trade state
     strategy: "POI Key Support Bounce (BUY)",
-    commentary: `Penyusunan rencana trading berdasarkan batas Support harian terdekat ($${swingLow.toFixed(2)}) sebagai POI aman untuk mengantisipasi akumulasi belian.`
+    commentary: `Penyusunan rencana trading berdasarkan batas Support harian terdekat ($${swingLow.toFixed(2)}) sebagai POI aman untuk mengantisipasi akumulasi belian.`,
+    category: "FALLBACK"
   });
 
   candidates.push({
     name: "POI Resistance Rejection (SELL)",
     type: "SELL",
     entryPrice: currentClose,
-    stopLoss: swingHigh + 2.0,
-    baseConfidence: 89,
+    stopLoss: swingHigh + (1.0 * atr),
+    baseConfidence: 85,
     isTechnicallyValid: true, // Always eligible backup
     strategy: "POI Key Resistance Rejection (SELL)",
-    commentary: `Penyusunan rencana trading berdasarkan batas Resistance harian terdekat ($${swingHigh.toFixed(2)}) sebagai POI aman untuk mengantisipasi penolakan jenuh.`
-  });
-
-  // 7. Stochastic Momentum Alignment
-  const isStochBuy = dLine > 35 && kLine < 30 && kLine > prevKLine;
-  const isStochSell = dLine < 65 && kLine > 70 && kLine < prevKLine;
-
-  candidates.push({
-    name: "Stochastic Discount Alignment (BUY)",
-    type: "BUY",
-    entryPrice: currentClose,
-    stopLoss: currentClose - 3.0,
-    baseConfidence: 90,
-    isTechnicallyValid: isStochBuy,
-    strategy: "Multi-Timeframe Stochastic Momentum (BUY)",
-    commentary: `Ayunan stochastic oversold memberikan diskon harga saat tren utama dominan bullish. Titik entry efisien sejalan roda momentum harian.`
-  });
-
-  candidates.push({
-    name: "Stochastic Premium Alignment (SELL)",
-    type: "SELL",
-    entryPrice: currentClose,
-    stopLoss: currentClose + 3.0,
-    baseConfidence: 90,
-    isTechnicallyValid: isStochSell,
-    strategy: "Multi-Timeframe Stochastic Momentum (SELL)",
-    commentary: `Stochastic overbought memberikan harga premium untuk sell sejalan tren utama dominan bearish. Menghindari bahaya jebakan beli.`
-  });
-
-  // 8. Dynamic EMA 50 Pullback (POI backup!)
-  const isEma50PullbackBuy = currentClose > ema50;
-  const isEma50PullbackSell = currentClose < ema50;
-
-  candidates.push({
-    name: "Dynamic EMA-50 Pullback (BUY)",
-    type: "BUY",
-    entryPrice: currentClose,
-    stopLoss: ema50 - 2.5,
-    baseConfidence: 88,
-    isTechnicallyValid: isEma50PullbackBuy,
-    strategy: "Dynamic EMA-50 Pullback (BUY)",
-    commentary: `Harga melakukan retest sehat pada Moving Average 50 harian ($${ema50.toFixed(2)}). Tren naik masih terjaga secara dinamis.`
-  });
-
-  candidates.push({
-    name: "Dynamic EMA-50 Pullback (SELL)",
-    type: "SELL",
-    entryPrice: currentClose,
-    stopLoss: ema50 + 2.5,
-    baseConfidence: 88,
-    isTechnicallyValid: isEma50PullbackSell,
-    strategy: "Dynamic EMA-50 Pullback (SELL)",
-    commentary: `Harga tertahan oleh Moving Average 50 harian ($${ema50.toFixed(2)}) dari bawah. Sinyal pemulihan terhambat dominasi bear.`
+    commentary: `Penyusunan rencana trading berdasarkan batas Resistance harian terdekat ($${swingHigh.toFixed(2)}) sebagai POI aman untuk mengantisipasi penolakan jenuh.`,
+    category: "FALLBACK"
   });
 
   // Filter technically eligible candidates
   const validSetups = candidates.filter(c => c.isTechnicallyValid);
 
-  // Score and rank candidates based on alignment, risk tightness, and trend synergy
+  // ----------------------------------------------------
+  // QUANT-BASED RATING & COGNITIVE SCORING SYSTEM
+  // ----------------------------------------------------
   const rankedSetups = validSetups.map(candidate => {
     let score = candidate.baseConfidence;
 
-    // 1. Proximity / Risk Tightness Score
-    const riskDistance = Math.abs(candidate.entryPrice - candidate.stopLoss);
-    if (riskDistance <= 3.5) {
-      score += 6; // High reward for extremely tight, precise risk boundaries
-    } else if (riskDistance <= 7.0) {
-      score += 3;
-    }
-
-    // 2. Trend direction alignment (EMA50 vs EMA200)
-    if (candidate.type === "BUY" && isTrendBullish) {
-      score += 10; // Mega bonus for trend-following buy
-    } else if (candidate.type === "SELL" && isTrendBearish) {
-      score += 10; // Mega bonus for trend-following sell
-    }
-
-    // 3. Oscillator confluence (RSI oversold/overbought discounts)
-    if (candidate.type === "BUY") {
-      if (rsi < 45) score += 5; // Good buy discount
-      if (kLine < 25) score += 4;
+    // 1. Trend Synergy Alignment
+    const isBuyAndBullish = candidate.type === "BUY" && (isTrendBullish || metrics.kalmanTrendState === "BULLISH");
+    const isSellAndBearish = candidate.type === "SELL" && (isTrendBearish || metrics.kalmanTrendState === "BEARISH");
+    if (isBuyAndBullish || isSellAndBearish) {
+      score += 15; // Major trend synergy bonus
     } else {
-      if (rsi > 55) score += 5; // Good sell premium
-      if (kLine > 75) score += 4;
+      score -= 10; // Counter-trend trade penalty
     }
 
-    // 4. Priority bias for entry zones close to current price (SMC or POI)
-    // We favor setups targeting entry levels extremely close to the current quote
-    const priceGap = Math.abs(currentClose - candidate.entryPrice);
-    if (priceGap < 1.0) {
-      score += 5; // Fast trigger bonus
+    // 2. CVD (Cumulative Volume Delta) Divergence - THE QUANT GOLDEN EDGE
+    const isCvdBullishDivergence = metrics.cvdDivergenceDetected && metrics.cvdDivergenceDirection === "BUY_REJECTED"; // CVD leads up, or price rejection
+    if (candidate.type === "BUY" && isCvdBullishDivergence) {
+      score += 25; // Massive institutional absorption confirmation
+      candidate.baseConfidence = 98; // Lock ultra high confidence
+    } else if (candidate.type === "SELL" && metrics.cvdDivergenceDetected && metrics.cvdDivergenceDirection === "SELL_REJECTED") {
+      score += 25;
+      candidate.baseConfidence = 98;
+    }
+
+    // 3. OFI (Order Flow Imbalance) Alignment
+    if (candidate.type === "BUY") {
+      if (metrics.ofiValue > 150) score += 10; // Institutional buying pressure
+      else if (metrics.ofiValue < -150) score -= 15; // Heavy selling pressure: penalize
+    } else {
+      if (metrics.ofiValue < -150) score += 10; // Institutional selling pressure
+      else if (metrics.ofiValue > 150) score -= 15; // Heavy buying pressure: penalize
+    }
+
+    // 4. VPIN (Volume-Synchronized Probability of Informed Trading) Toxicity Protection
+    // Jika VPIN sangat beracun (TOXIC), batalkan atau kurangi skor mean-reversion secara drastis
+    if (metrics.vpinStatus === "TOXIC" || metrics.vpinValue > 0.68) {
+      if (candidate.name.includes("Bounce") || candidate.name.includes("Extreme")) {
+        score -= 40; // Menolak keras counter-trend bounce karena resiko tergilas trend racun institusional!
+      } else if (candidate.category === "ELITE") {
+        score += 10; // Mendukung trend breakout elite
+      }
+    }
+
+    // 5. Microstructure Noise Filter
+    // Jika tingkat kebisingan pasar tinggi, kurangi skor setup fallback dan berikan prioritas pada elite wick sweeps
+    if (metrics.noiseFilterStatus === "LOW_QUALITY" || metrics.noiseRatio > 0.38) {
+      if (candidate.category === "FALLBACK") {
+        score -= 20; // Kurangi ketergantungan pada setup support biasa
+      } else if (candidate.name.includes("Sweep")) {
+        score += 12; // Wick sweep bekerja sangat baik di pasar volatil/bising!
+      }
+    }
+
+    // 6. Hawkes Process (News Arrival Intensity) Protection
+    if (metrics.hawkesIntensity > 2.8) {
+      score -= 12; // Kurangi skor akumulasi karena rilis data penting membuat slippage tinggi
+    }
+
+    // 7. Elite setup priority
+    if (candidate.category === "ELITE") {
+      score += 15;
     }
 
     return {
@@ -794,21 +779,31 @@ function createNewLiveSignal(
   // Sort by rankingScore descending (the ultimate winner emerges at index 0)
   rankedSetups.sort((a, b) => b.rankingScore - a.rankingScore);
 
-  const selectedSetup = rankedSetups[0];
+  const selectedSetup = rankedSetups[0] || candidates[candidates.length - 1]; // fallback to support/resistance POI if empty
 
-  const minStopLoss = 3.0; // Minimal buffer stop loss
-  const pureDiff = Math.max(minStopLoss, Math.abs(currentClose - selectedSetup.stopLoss));
-  const slLimit = selectedSetup.type === "BUY" ? currentClose - pureDiff : currentClose + pureDiff;
-  
-  const tp1Distance = Math.max(pureDiff * 1.5, 4.0);
-  const tp2Distance = Math.max(pureDiff * 2.8, 7.5);
-  const tp3Distance = Math.max(pureDiff * 4.5, 12.0);
+  // ----------------------------------------------------
+  // DYNAMIC ATR RISK-PROFILE MATRIX GENERATOR
+  // ----------------------------------------------------
+  const baseATR = Math.max(1.8, atr); // Ensure minimum buffer size
 
-  const tpTarget1 = selectedSetup.type === "BUY" ? currentClose + tp1Distance : currentClose - tp1Distance;
-  const tpTarget2 = selectedSetup.type === "BUY" ? currentClose + tp2Distance : currentClose - tp2Distance;
-  const tpTarget3 = selectedSetup.type === "BUY" ? currentClose + tp3Distance : currentClose - tp3Distance;
+  // 1. Balanced Profile (Default)
+  const slBalanced = selectedSetup.type === "BUY" ? currentClose - (1.2 * baseATR) : currentClose + (1.2 * baseATR);
+  const tp1Balanced = selectedSetup.type === "BUY" ? currentClose + (1.6 * baseATR) : currentClose - (1.6 * baseATR);
+  const tp2Balanced = selectedSetup.type === "BUY" ? currentClose + (3.2 * baseATR) : currentClose - (3.2 * baseATR);
 
-  const commentaryText = `Evaluasi Kualitatif Kuantitatif: Sistem memindai 8 area POI terdekat harian, memberi ranking kelayakan, dan memilih strategi terbaik dari candidate pool.\n\n=== 📊 Peringkat Analisa Kunci ===\n- Menemukan ${validSetups.length} setup kandidat valid.\n- Pemenang: **${selectedSetup.strategy}** (Skor Kelayakan: ${selectedSetup.rankingScore} / 120)\n\n=== 🛠 Rincian Teknis ===\n${selectedSetup.commentary} RSI saat ini berada di level ${rsi.toFixed(1)} dan EMA50 berada di $${ema50.toFixed(2)}.`;
+  // 2. Conservative Profile (Tight risk, protective targets)
+  const slConservative = selectedSetup.type === "BUY" ? currentClose - (0.65 * baseATR) : currentClose + (0.65 * baseATR);
+  const tp1Conservative = selectedSetup.type === "BUY" ? currentClose + (0.9 * baseATR) : currentClose - (0.9 * baseATR);
+  const tp2Conservative = selectedSetup.type === "BUY" ? currentClose + (1.8 * baseATR) : currentClose - (1.8 * baseATR);
+
+  // 3. Tactical Profile (Wide buffer for major lateral trends capture)
+  const slTactical = selectedSetup.type === "BUY" ? currentClose - (2.2 * baseATR) : currentClose + (2.2 * baseATR);
+  const tp1Tactical = selectedSetup.type === "BUY" ? currentClose + (2.8 * baseATR) : currentClose - (2.8 * baseATR);
+  const tp2Tactical = selectedSetup.type === "BUY" ? currentClose + (5.0 * baseATR) : currentClose - (5.0 * baseATR);
+
+  const chosenConfidence = Math.min(99, Math.max(70, selectedSetup.baseConfidence));
+
+  const commentaryText = `Evaluasi Kualitatif Kuantitatif: Sistem mengaudit pool ${candidates.length} kandidat taktis harian menggunakan filter VPIN, OFI, Noise, Hawkes, dan CVD Divergence. Strategi terpilih memiliki edge statistik optimal.\n\n=== 📊 Peringkat Analisa Kunci ===\n- Menemukan ${validSetups.length} setup kandidat valid hulu.\n- Pemenang: **${selectedSetup.strategy}** (Skor Kelayakan: ${selectedSetup.rankingScore || 100} / 150)\n- Volatilitas ATR (14): $${baseATR.toFixed(2)}\n- VPIN State: ${metrics.vpinValue.toFixed(4)} (${metrics.vpinStatus})\n- OFI Pressure: ${metrics.ofiValue} (${metrics.ofiSignal})`;
 
   return {
     id: `sig-perseus-live-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -817,15 +812,26 @@ function createNewLiveSignal(
     timeframe: "M15",
     time: Date.now(),
     entryPrice: Number(currentClose.toFixed(2)),
-    stopLoss: Number(slLimit.toFixed(2)),
-    takeProfit1: Number(tpTarget1.toFixed(2)),
-    takeProfit2: Number(tpTarget2.toFixed(2)),
-    takeProfit3: Number(tpTarget3.toFixed(2)),
+    stopLoss: Number(slBalanced.toFixed(2)),
+    takeProfit1: Number(tp1Balanced.toFixed(2)),
+    takeProfit2: Number(tp2Balanced.toFixed(2)),
+    takeProfit3: Number((selectedSetup.type === "BUY" ? currentClose + 4.8 * baseATR : currentClose - 4.8 * baseATR).toFixed(2)),
     status: "ACTIVE",
     pips: 0,
-    confidence: selectedSetup.baseConfidence,
+    confidence: chosenConfidence,
     strategy: selectedSetup.strategy,
-    commentary: `Arahan Eksekusi Scalping: ${selectedSetup.type === "BUY" ? "🟢 ENTRY BUY" : "🔴 ENTRY SELL"} (Akurasi Tinggi: ${selectedSetup.baseConfidence}%)\n\n=== 🛠 Analisa Teknikal Algoritmik ===\n${commentaryText}\n\n=== 🛡 Manajemen Risiko Ketat ===\n- 🛑 Titik Stop Loss Mutlak: $${slLimit.toFixed(2)}\n- 🎯 Target Cuci Tangan Cepat (TP1): $${tpTarget1.toFixed(2)}\n- 🎯 Target Max Extensi (TP2): $${tpTarget2.toFixed(2)}\nRR Sangat Asimetris. Hindari FOMO, masuk jika sesuai dengan ruleset!`
+    commentary: `Arahan Eksekusi Scalping: ${selectedSetup.type === "BUY" ? "🟢 ENTRY BUY" : "🔴 ENTRY SELL"} (Kepercayaan Kuantitatif: ${chosenConfidence}%)\n\n=== 🛠 Analisa Teknikal Algoritmik ===\n${commentaryText}\n\n=== 🛡 Manajemen Risiko Ketat ===\n- 🛑 Stop Loss Balanced: $${slBalanced.toFixed(2)}\n- 🎯 Target TP1 Balanced: $${tp1Balanced.toFixed(2)}\n- 🎯 Target TP2 Balanced: $${tp2Balanced.toFixed(2)}\nSistem secara otomatis menyesuaikan tingkat pengaman ini secara dinamis pada terminal MetaTrader 5 Anda.`,
+    
+    // Dynamic Volatility-adjusted target levels per risk profile
+    slConservative: Number(slConservative.toFixed(2)),
+    tp1Conservative: Number(tp1Conservative.toFixed(2)),
+    tp2Conservative: Number(tp2Conservative.toFixed(2)),
+    slBalanced: Number(slBalanced.toFixed(2)),
+    tp1Balanced: Number(tp1Balanced.toFixed(2)),
+    tp2Balanced: Number(tp2Balanced.toFixed(2)),
+    slTactical: Number(slTactical.toFixed(2)),
+    tp1Tactical: Number(tp1Tactical.toFixed(2)),
+    tp2Tactical: Number(tp2Tactical.toFixed(2))
   };
 }
 
@@ -1023,8 +1029,24 @@ async function _processPerseusMarketDataInternal(forceBypassCache = false): Prom
     // PROFESSIONAL NO-REPAINT STATE MACHINE & FIXED LOCKED ENTRIES
     // ----------------------------------------------------
 
+    // Load BotConfig to get the selected riskProfile (for real-time synchronization)
+    let activeProfile: "CONSERVATIVE" | "BALANCED" | "TACTICAL" = "BALANCED";
+    try {
+      const { dbGetBotConfig } = await import("./db");
+      const botConfig = await dbGetBotConfig("master");
+      if (botConfig && botConfig.riskProfile) {
+        activeProfile = botConfig.riskProfile;
+      }
+    } catch (err) {
+      console.warn("[Perseus Core] Could not load BotConfig from database, using BALANCED fallback:", err);
+    }
+
+    // ----------------------------------------------------
+    // PROFESSIONAL NO-REPAINT STATE MACHINE & FIXED LOCKED ENTRIES
+    // ----------------------------------------------------
+
     if (activeLiveSignal.id === "sig-perseus-initial" || activeLiveSignal.status !== "ACTIVE") {
-      activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries);
+      activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries, computedQuant);
       await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
       console.log(`[Perseus Core] Generated locked active signal setup. Type: ${activeLiveSignal.type}, Entry: ${activeLiveSignal.entryPrice}, SL: ${activeLiveSignal.stopLoss}`);
     } else {
@@ -1040,85 +1062,116 @@ async function _processPerseusMarketDataInternal(forceBypassCache = false): Prom
       
       if (isPriceGapSuspicious) {
         console.log(`[Perseus Core] Stale/suspicious price gap detected ($${priceQuote} vs Entry $${activeLiveSignal.entryPrice}). Automatically resetting/invalidating stale signal to synchronize with real-time price.`);
-        activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries);
+        activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries, computedQuant);
         await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
       } else {
+        // Resolve target prices based on the selected riskProfile
+        let liveSL = activeLiveSignal.stopLoss;
+        let liveTP1 = activeLiveSignal.takeProfit1;
+        let liveTP2 = activeLiveSignal.takeProfit2;
+
+        if (activeProfile === "CONSERVATIVE") {
+          liveSL = activeLiveSignal.slConservative ?? activeLiveSignal.stopLoss;
+          liveTP1 = activeLiveSignal.tp1Conservative ?? activeLiveSignal.takeProfit1;
+          liveTP2 = activeLiveSignal.tp2Conservative ?? activeLiveSignal.takeProfit2;
+        } else if (activeProfile === "TACTICAL") {
+          liveSL = activeLiveSignal.slTactical ?? activeLiveSignal.stopLoss;
+          liveTP1 = activeLiveSignal.tp1Tactical ?? activeLiveSignal.takeProfit1;
+          liveTP2 = activeLiveSignal.tp2Tactical ?? activeLiveSignal.takeProfit2;
+        } else {
+          liveSL = activeLiveSignal.slBalanced ?? activeLiveSignal.stopLoss;
+          liveTP1 = activeLiveSignal.tp1Balanced ?? activeLiveSignal.takeProfit1;
+          liveTP2 = activeLiveSignal.tp2Balanced ?? activeLiveSignal.takeProfit2;
+        }
+
+        // Breakeven tracking
+        if (activeLiveSignal.tp1Hit) {
+          liveSL = activeLiveSignal.entryPrice;
+        }
+
         // Check for real-time price boundary touches
         if (activeLiveSignal.type === "BUY") {
-        // TP1 Hit check
-        if (priceQuote >= activeLiveSignal.takeProfit1 && !activeLiveSignal.tp1Hit) {
-          activeLiveSignal.tp1Hit = true;
-          // Dynamically adjust Stop Loss to Breakeven (entryPrice) to protect the trade
-          activeLiveSignal.stopLoss = activeLiveSignal.entryPrice;
-          await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
-          console.log(`[Perseus Core] Active BUY signal TP1 Hit! Adjusted SL to Breakeven: $${activeLiveSignal.entryPrice}`);
-        }
-
-        // SL Hit check (note: SL might have been adjusted to entryPrice if TP1 was already hit)
-        if (priceQuote <= activeLiveSignal.stopLoss) {
-          isClosed = true;
-          if (activeLiveSignal.tp1Hit) {
-            closeStatus = "WIN_TP1"; // Closed in profit at TP1 / Breakeven
-            executionPrice = activeLiveSignal.stopLoss; // Exit at breakeven SL
-            profitPips = 10; // Nominal +10 pips for partial TP1 scale-out
-          } else {
-            closeStatus = "LOSS";
-            executionPrice = activeLiveSignal.stopLoss;
-            profitPips = -Math.round(Math.abs(activeLiveSignal.entryPrice - activeLiveSignal.stopLoss) * 10);
+          // TP1 Hit check
+          if (priceQuote >= liveTP1 && !activeLiveSignal.tp1Hit) {
+            activeLiveSignal.tp1Hit = true;
+            // Adjust local trigger
+            liveSL = activeLiveSignal.entryPrice;
+            await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
+            console.log(`[Perseus Core] Active BUY signal TP1 Hit ($${liveTP1})! Adjusted SL to Breakeven: $${activeLiveSignal.entryPrice}`);
           }
-        } 
-        // TP2 Hit check
-        else if (priceQuote >= activeLiveSignal.takeProfit2) {
-          isClosed = true;
-          closeStatus = "WIN"; // TP2 Hit (Major Win)
-          executionPrice = activeLiveSignal.takeProfit2;
-          profitPips = Math.round(Math.abs(activeLiveSignal.takeProfit2 - activeLiveSignal.entryPrice) * 10);
-        }
-      } else if (activeLiveSignal.type === "SELL") {
-        // TP1 Hit check
-        if (priceQuote <= activeLiveSignal.takeProfit1 && !activeLiveSignal.tp1Hit) {
-          activeLiveSignal.tp1Hit = true;
-          // Dynamically adjust Stop Loss to Breakeven (entryPrice) to protect the trade
-          activeLiveSignal.stopLoss = activeLiveSignal.entryPrice;
-          await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
-          console.log(`[Perseus Core] Active SELL signal TP1 Hit! Adjusted SL to Breakeven: $${activeLiveSignal.entryPrice}`);
-        }
 
-        // SL Hit check
-        if (priceQuote >= activeLiveSignal.stopLoss) {
-          isClosed = true;
-          if (activeLiveSignal.tp1Hit) {
-            closeStatus = "WIN_TP1"; // Closed in profit at TP1 / Breakeven
-            executionPrice = activeLiveSignal.stopLoss;
-            profitPips = 10; // Nominal +10 pips for partial TP1 scale-out
-          } else {
-            closeStatus = "LOSS";
-            executionPrice = activeLiveSignal.stopLoss;
-            profitPips = -Math.round(Math.abs(activeLiveSignal.stopLoss - activeLiveSignal.entryPrice) * 10);
+          // SL Hit check (including breakeven SL)
+          if (priceQuote <= liveSL) {
+            isClosed = true;
+            executionPrice = liveSL;
+            if (activeLiveSignal.tp1Hit) {
+              closeStatus = "WIN_TP1"; // Closed at breakeven after TP1 partial close-out
+              profitPips = Math.round(Math.abs(liveTP1 - activeLiveSignal.entryPrice) * 5); // +50% position profit
+            } else {
+              closeStatus = "LOSS";
+              profitPips = -Math.round(Math.abs(activeLiveSignal.entryPrice - liveSL) * 10);
+            }
+          } 
+          // TP2 Hit check
+          else if (priceQuote >= liveTP2) {
+            isClosed = true;
+            closeStatus = "WIN"; // TP2 Hit (Major Win)
+            executionPrice = liveTP2;
+            profitPips = Math.round(Math.abs(liveTP2 - activeLiveSignal.entryPrice) * 10);
           }
-        } 
-        // TP2 Hit check
-        else if (priceQuote <= activeLiveSignal.takeProfit2) {
-          isClosed = true;
-          closeStatus = "WIN"; // TP2 Hit (Major Win)
-          executionPrice = activeLiveSignal.takeProfit2;
-          profitPips = Math.round(Math.abs(activeLiveSignal.entryPrice - activeLiveSignal.takeProfit2) * 10);
-        }
-      }
-    }
+        } else if (activeLiveSignal.type === "SELL") {
+          // TP1 Hit check
+          if (priceQuote <= liveTP1 && !activeLiveSignal.tp1Hit) {
+            activeLiveSignal.tp1Hit = true;
+            // Adjust local trigger
+            liveSL = activeLiveSignal.entryPrice;
+            await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
+            console.log(`[Perseus Core] Active SELL signal TP1 Hit ($${liveTP1})! Adjusted SL to Breakeven: $${activeLiveSignal.entryPrice}`);
+          }
 
-      // If trade survived for 3.5 hours without hitting SL or TP2, we naturally close it out as a success based on SMC drift
-      if (!isClosed && elapsedMs >= 3.5 * 3600 * 1000) {
-        const winChance = Math.random() < 0.86;
-        isClosed = true;
-        if (winChance) {
-          closeStatus = "WIN_TP1";
-          executionPrice = activeLiveSignal.takeProfit1;
-          profitPips = Math.round(Math.abs(activeLiveSignal.takeProfit1 - activeLiveSignal.entryPrice) * 10);
-        } else {
-          closeStatus = "LOSS";
-          executionPrice = activeLiveSignal.stopLoss;
-          profitPips = -Math.round(Math.abs(activeLiveSignal.entryPrice - activeLiveSignal.stopLoss) * 10);
+          // SL Hit check
+          if (priceQuote >= liveSL) {
+            isClosed = true;
+            executionPrice = liveSL;
+            if (activeLiveSignal.tp1Hit) {
+              closeStatus = "WIN_TP1";
+              profitPips = Math.round(Math.abs(activeLiveSignal.entryPrice - liveTP1) * 5);
+            } else {
+              closeStatus = "LOSS";
+              profitPips = -Math.round(Math.abs(liveSL - activeLiveSignal.entryPrice) * 10);
+            }
+          } 
+          // TP2 Hit check
+          else if (priceQuote <= liveTP2) {
+            isClosed = true;
+            closeStatus = "WIN"; // TP2 Hit (Major Win)
+            executionPrice = liveTP2;
+            profitPips = Math.round(Math.abs(activeLiveSignal.entryPrice - liveTP2) * 10);
+          }
+        }
+
+        // If trade survived for 3.5 hours without hitting SL or TP2, close at real market price hulu
+        if (!isClosed && elapsedMs >= 3.5 * 3600 * 1000) {
+          isClosed = true;
+          executionPrice = priceQuote;
+          const priceDiff = priceQuote - activeLiveSignal.entryPrice;
+          
+          if (activeLiveSignal.type === "BUY") {
+            profitPips = Math.round(priceDiff * 10);
+            if (priceDiff > 0) {
+              closeStatus = priceDiff >= (liveTP1 - activeLiveSignal.entryPrice) ? "WIN" : "WIN_TP1";
+            } else {
+              closeStatus = "LOSS";
+            }
+          } else { // SELL trade
+            profitPips = Math.round(-priceDiff * 10);
+            if (priceDiff < 0) {
+              closeStatus = -priceDiff >= (activeLiveSignal.entryPrice - liveTP1) ? "WIN" : "WIN_TP1";
+            } else {
+              closeStatus = "LOSS";
+            }
+          }
+          console.log(`[Perseus Core] Time expiration (3.5H) triggered. Closed XAUUSD at market price: $${priceQuote.toFixed(2)} (${profitPips} Pips)`);
         }
       }
 
@@ -1336,7 +1389,7 @@ async function _triggerAISignalScanInternal(forceRetry = false): Promise<Signal>
   const lowerBand = Number(fullBb.lower[fullBb.lower.length - 1].toFixed(2));
 
   // Generate perfect high-conviction locked signal
-  const newSignal = createNewLiveSignal(price, candlestickSeries);
+  const newSignal = createNewLiveSignal(price, candlestickSeries, activeMarketParams.quant);
   
   activeLiveSignal = newSignal;
   await saveSignalsToDB(activeLiveSignal, activeHistorySignals);

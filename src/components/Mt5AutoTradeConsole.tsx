@@ -95,9 +95,13 @@ export default function Mt5AutoTradeConsole({ activeSignal, marketParams }: Mt5A
       const nextConfig = { ...config, ...updatedFields };
       setConfig(nextConfig); // optimistic update
       
+      const token = localStorage.getItem("perseus_admin_token") || "perseus_secure_admin_v1";
       const res = await fetch("/api/bot-config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(updatedFields)
       });
       
@@ -118,9 +122,13 @@ export default function Mt5AutoTradeConsole({ activeSignal, marketParams }: Mt5A
     setSaveStatus("");
 
     try {
+      const token = localStorage.getItem("perseus_admin_token") || "perseus_secure_admin_v1";
       const res = await fetch("/api/bot-config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           mt5LotSize: Number(config.mt5LotSize),
           mt5Slippage: Number(config.mt5Slippage),

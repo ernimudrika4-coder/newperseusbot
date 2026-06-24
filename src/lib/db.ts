@@ -13,6 +13,7 @@ export interface BotConfig {
   telegramChatId: string;
   lastUpdateId: number;
   executionLogs: Array<{ time: string; type: string; message: string }>;
+  riskProfile?: "CONSERVATIVE" | "BALANCED" | "TACTICAL";
 }
 
 export interface Signal {
@@ -168,6 +169,7 @@ export async function initializeDatabaseSchema() {
           telegram_chat_id VARCHAR(100) DEFAULT '',
           last_update_id INTEGER DEFAULT 0,
           execution_logs TEXT DEFAULT '[]',
+          risk_profile VARCHAR(50) DEFAULT 'BALANCED',
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
@@ -250,7 +252,8 @@ export async function dbGetBotConfig(id: string = "master"): Promise<BotConfig> 
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
     telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
     lastUpdateId: 0,
-    executionLogs: []
+    executionLogs: [],
+    riskProfile: "BALANCED"
   };
 
   if (!isPostgres || !pool) {
@@ -275,7 +278,8 @@ export async function dbGetBotConfig(id: string = "master"): Promise<BotConfig> 
         telegramBotToken: row.telegram_bot_token || "",
         telegramChatId: row.telegram_chat_id || "",
         lastUpdateId: row.last_update_id || 0,
-        executionLogs: logsParsed
+        executionLogs: logsParsed,
+        riskProfile: row.risk_profile || "BALANCED"
       };
     }
     return defaultVal;
@@ -295,8 +299,8 @@ export async function dbSaveBotConfig(id: string, config: BotConfig): Promise<vo
 
   try {
     await pool.query(`
-      INSERT INTO bot_configs (id, bot_enabled, mt5_lot_size, mt5_slippage, telegram_bot_token, telegram_chat_id, last_update_id, execution_logs, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      INSERT INTO bot_configs (id, bot_enabled, mt5_lot_size, mt5_slippage, telegram_bot_token, telegram_chat_id, last_update_id, execution_logs, risk_profile, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       ON CONFLICT (id) DO UPDATE SET
         bot_enabled = EXCLUDED.bot_enabled,
         mt5_lot_size = EXCLUDED.mt5_lot_size,
@@ -305,6 +309,7 @@ export async function dbSaveBotConfig(id: string, config: BotConfig): Promise<vo
         telegram_chat_id = EXCLUDED.telegram_chat_id,
         last_update_id = EXCLUDED.last_update_id,
         execution_logs = EXCLUDED.execution_logs,
+        risk_profile = EXCLUDED.risk_profile,
         updated_at = NOW()
     `, [
       id,
@@ -314,7 +319,8 @@ export async function dbSaveBotConfig(id: string, config: BotConfig): Promise<vo
       config.telegramBotToken,
       config.telegramChatId,
       config.lastUpdateId,
-      JSON.stringify(config.executionLogs || [])
+      JSON.stringify(config.executionLogs || []),
+      config.riskProfile || "BALANCED"
     ]);
   } catch (err) {
     console.error("[DB Helper] dbSaveBotConfig failed:", err);

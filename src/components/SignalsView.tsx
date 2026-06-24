@@ -78,6 +78,39 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const fetchInitialRiskProfile = async () => {
+      try {
+        const res = await fetch("/api/bot-config");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.riskProfile) {
+            setRiskProfile(data.riskProfile);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading initial risk profile:", err);
+      }
+    };
+    fetchInitialRiskProfile();
+  }, []);
+
+  const updateRiskProfileOnServer = async (prof: "CONSERVATIVE" | "BALANCED" | "TACTICAL") => {
+    try {
+      const token = localStorage.getItem("perseus_admin_token") || "perseus_secure_admin_v1";
+      await fetch("/api/bot-config", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ riskProfile: prof })
+      });
+    } catch (err) {
+      console.error("Error updating risk profile on server:", err);
+    }
+  };
+
   const formatNextScan = () => {
     const hrs = Math.floor(nextScanSecs / 3600);
     const min = Math.floor((nextScanSecs % 3600) / 60);
@@ -106,22 +139,22 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
   const stopLoss = activeSignal?.stopLoss || 4530.96;
 
   // Profiling targets math logic
-  let dynamicSL = stopLoss;
-  let dynamicTP1 = takeProfit1;
-  let dynamicTP2 = takeProfit2;
+  let dynamicSL = activeSignal?.slBalanced ?? stopLoss;
+  let dynamicTP1 = activeSignal?.tp1Balanced ?? takeProfit1;
+  let dynamicTP2 = activeSignal?.tp2Balanced ?? takeProfit2;
   let dynamicConfidence = confidence;
   let riskProfileDescription = "Proyeksi standar multi-indikator divalidasi oleh kernel kecerdasan Perseus.";
 
   if (riskProfile === "CONSERVATIVE") {
-    dynamicSL = direction === "BUY" ? entryPrice - 6.50 : entryPrice + 6.50;
-    dynamicTP1 = direction === "BUY" ? entryPrice + 8.20 : entryPrice - 8.20;
-    dynamicTP2 = direction === "BUY" ? entryPrice + 14.50 : entryPrice - 14.50;
+    dynamicSL = activeSignal?.slConservative ?? (direction === "BUY" ? entryPrice - 6.50 : entryPrice + 6.50);
+    dynamicTP1 = activeSignal?.tp1Conservative ?? (direction === "BUY" ? entryPrice + 8.20 : entryPrice - 8.20);
+    dynamicTP2 = activeSignal?.tp2Conservative ?? (direction === "BUY" ? entryPrice + 14.50 : entryPrice - 14.50);
     dynamicConfidence = Math.min(97, confidence + 5);
     riskProfileDescription = "Penyelarasan protektif meminimalkan eksposur modal dengan stop-loss ketat.";
   } else if (riskProfile === "TACTICAL") {
-    dynamicSL = direction === "BUY" ? entryPrice - 18.00 : entryPrice + 18.00;
-    dynamicTP1 = direction === "BUY" ? entryPrice + 22.00 : entryPrice - 22.00;
-    dynamicTP2 = direction === "BUY" ? entryPrice + 38.50 : entryPrice - 38.50;
+    dynamicSL = activeSignal?.slTactical ?? (direction === "BUY" ? entryPrice - 18.00 : entryPrice + 18.00);
+    dynamicTP1 = activeSignal?.tp1Tactical ?? (direction === "BUY" ? entryPrice + 22.00 : entryPrice - 22.00);
+    dynamicTP2 = activeSignal?.tp2Tactical ?? (direction === "BUY" ? entryPrice + 38.50 : entryPrice - 38.50);
     dynamicConfidence = Math.max(74, confidence - 7);
     riskProfileDescription = "Struktur target dilebarkan demi memaksimalkan tangkapan trend breakout lateral besar.";
   }
@@ -148,14 +181,14 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
     const directionOfTrade = activeSignal.type;
     const isBuy = directionOfTrade === "BUY";
     
-    let liveSL = stopLoss;
-    let liveTP1 = takeProfit1;
+    let liveSL = activeSignal.slBalanced ?? stopLoss;
+    let liveTP1 = activeSignal.tp1Balanced ?? takeProfit1;
     if (riskProfile === "CONSERVATIVE") {
-      liveSL = isBuy ? entryPrice - 6.50 : entryPrice + 6.50;
-      liveTP1 = isBuy ? entryPrice + 8.20 : entryPrice - 8.20;
+      liveSL = activeSignal.slConservative ?? (isBuy ? entryPrice - 6.50 : entryPrice + 6.50);
+      liveTP1 = activeSignal.tp1Conservative ?? (isBuy ? entryPrice + 8.20 : entryPrice - 8.20);
     } else if (riskProfile === "TACTICAL") {
-      liveSL = isBuy ? entryPrice - 18.00 : entryPrice + 18.00;
-      liveTP1 = isBuy ? entryPrice + 22.00 : entryPrice - 22.00;
+      liveSL = activeSignal.slTactical ?? (isBuy ? entryPrice - 18.00 : entryPrice + 18.00);
+      liveTP1 = activeSignal.tp1Tactical ?? (isBuy ? entryPrice + 22.00 : entryPrice - 22.00);
     }
 
     if (isBuy) {
@@ -1575,7 +1608,10 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                     {(["CONSERVATIVE", "BALANCED", "TACTICAL"] as const).map((prof) => (
                       <button
                         key={prof}
-                        onClick={() => setRiskProfile(prof)}
+                        onClick={() => {
+                          setRiskProfile(prof);
+                          updateRiskProfileOnServer(prof);
+                        }}
                         className={`px-2.5 py-1 text-[8.5px] font-mono tracking-wider font-extrabold rounded transition-all cursor-pointer ${
                           riskProfile === prof 
                             ? "bg-amber-400 text-black font-black" 
