@@ -16,26 +16,7 @@ export interface BotConfig {
   riskProfile?: "CONSERVATIVE" | "BALANCED" | "TACTICAL";
 }
 
-export interface Signal {
-  id: string;
-  symbol: string;
-  direction: "BUY" | "SELL";
-  entryPrice: number;
-  tp1: number;
-  tp2: number;
-  sl: number;
-  time: string;
-  status: "ACTIVE" | "WIN" | "LOSS" | "CANCELLED" | "INVALID";
-  timeframe: string;
-  riskReward: string;
-  analysisType: string;
-  confidence: number;
-  tp1Hit?: boolean;
-  tp2Hit?: boolean;
-  slHit?: boolean;
-  commentary?: string;
-  mt5TicketId?: string;
-}
+import type { Signal } from "../types";
 
 export interface UserProfile {
   uid: string;

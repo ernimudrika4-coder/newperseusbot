@@ -9,7 +9,7 @@ export interface Signal {
   takeProfit1: number;
   takeProfit2: number;
   takeProfit3: number;
-  status: "WIN" | "WIN_TP1" | "LOSS" | "INVALID" | "ACTIVE";
+  status: "WIN" | "WIN_TP1" | "LOSS" | "INVALID" | "ACTIVE" | "WAITING";
   pips: number;
   confidence: number;
   strategy: string;

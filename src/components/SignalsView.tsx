@@ -164,6 +164,9 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
     if (!activeSignal) return { status: "ACTIVE", label: "ACTIVE / VALID", color: "text-[#00ff66] bg-[#00ff66]/10 border-[#00ff66]/30 animate-pulse", desc: "Formasi struktur teknikal valid. Menunggu sentuhan target harga." };
     
     // If backend already closed/marked it, use that
+    if (activeSignal.status === "WAITING") {
+      return { status: "WAITING", label: "MENUNGGU SETUP", color: "text-blue-400 bg-blue-500/10 border-blue-500/30 animate-pulse", desc: "Engine sedang mengukur struktur pasar untuk mencari peluang setup elite dengan probabilitas tinggi." };
+    }
     if (activeSignal.status === "WIN_TP1") {
       return { status: "WIN_TP1", label: "TARGET TP1 HIT", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]", desc: "Sinyal sukses mencapai target Take Profit 1 secara presisi." };
     }
@@ -796,7 +799,12 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                   {/* Canvas revolving sphere */}
                   <canvas ref={canvasRef} className="absolute inset-0 w-full h-full block pointer-events-none" />
 
-                  {direction === "BUY" ? (
+                  {activeSignal?.status === "WAITING" ? (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 border border-blue-500/35 px-5 py-2.5 rounded-full shadow-[0_0_35px_rgba(59,130,246,0.12)] flex items-center gap-2.5 font-mono text-[10px] text-blue-400 font-black tracking-widest uppercase z-10 overflow-hidden">
+                      <div className="absolute inset-0 bg-blue-500/10 backdrop-blur-md -z-10" />
+                      <Activity className="w-4 h-4 animate-spin text-blue-400" /> SCANNING MARKETS...
+                    </div>
+                  ) : direction === "BUY" ? (
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 border border-emerald-500/35 px-5 py-2.5 rounded-full shadow-[0_0_35px_rgba(0,255,102,0.12)] flex items-center gap-2.5 font-mono text-[10px] text-[#00ff66] font-black tracking-widest uppercase z-10 overflow-hidden">
                       <div className="absolute inset-0 bg-emerald-500/10 backdrop-blur-md -z-10" />
                       <Activity className="w-4 h-4 animate-spin text-[#00ff66]" /> BUY ZONE ACTIVE
@@ -812,7 +820,9 @@ export default function SignalsView({ activeSignal, marketParams, onNavigate, si
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 border border-amber-500/15 p-3 rounded-lg flex flex-col gap-1 shadow-lg hidden sm:flex z-10 select-none overflow-hidden">
                     <div className="absolute inset-0 bg-[#000000]/85 backdrop-blur-md -z-10" />
                     <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest font-black">ORBIT BIAS</span>
-                    {direction === "BUY" ? (
+                    {activeSignal?.status === "WAITING" ? (
+                      <span className="text-blue-500 font-mono font-black text-xs uppercase tracking-wide">● NEUTRAL</span>
+                    ) : direction === "BUY" ? (
                       <span className="text-[#00ff66] font-mono font-black text-xs uppercase tracking-wide">● STRONG BUY</span>
                     ) : (
                       <span className="text-rose-500 font-mono font-black text-xs uppercase tracking-wide">● STRONG SELL</span>

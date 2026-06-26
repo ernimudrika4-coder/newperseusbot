@@ -15,36 +15,7 @@ import path from "path";
 
 export let latestWsPrice: number | null = null;
 
-export interface Signal {
-  id: string;
-  symbol: string;
-  type: "BUY" | "SELL";
-  timeframe: string;
-  time: number;
-  entryPrice: number;
-  stopLoss: number;
-  takeProfit1: number;
-  takeProfit2: number;
-  takeProfit3: number;
-  status: "WIN" | "WIN_TP1" | "LOSS" | "INVALID" | "ACTIVE";
-  pips: number;
-  confidence: number;
-  strategy: string;
-  commentary: string;
-  tp1Hit?: boolean;
-  tp2Hit?: boolean;
-  
-  // Dynamic Volatility-adjusted target levels per risk profile
-  slConservative?: number;
-  tp1Conservative?: number;
-  tp2Conservative?: number;
-  slBalanced?: number;
-  tp1Balanced?: number;
-  tp2Balanced?: number;
-  slTactical?: number;
-  tp1Tactical?: number;
-  tp2Tactical?: number;
-}
+import type { Signal } from "../types";
 
 export interface MarketParams {
   oscillatorState: string;
@@ -678,14 +649,18 @@ function createNewLiveSignal(
     category: "ELITE"
   });
 
-  // 5. POI Support / Resistance POI (Always valid backups to guarantee continuous trading plans!)
+  // 5. POI Support / Resistance POI
+  // Only valid if price is genuinely near the POI and rejecting it
+  const nearSupport = currentClose <= swingLow + (0.4 * atr) && isGreenCandle;
+  const nearResistance = currentClose >= swingHigh - (0.4 * atr) && isRedCandle;
+
   candidates.push({
     name: "POI Support Bounce (BUY)",
     type: "BUY",
     entryPrice: currentClose,
     stopLoss: swingLow - (1.0 * atr),
     baseConfidence: 85,
-    isTechnicallyValid: true, // Always eligible backup to avoid no-trade state
+    isTechnicallyValid: nearSupport,
     strategy: "POI Key Support Bounce (BUY)",
     commentary: `Penyusunan rencana trading berdasarkan batas Support harian terdekat ($${swingLow.toFixed(2)}) sebagai POI aman untuk mengantisipasi akumulasi belian.`,
     category: "FALLBACK"
@@ -697,7 +672,7 @@ function createNewLiveSignal(
     entryPrice: currentClose,
     stopLoss: swingHigh + (1.0 * atr),
     baseConfidence: 85,
-    isTechnicallyValid: true, // Always eligible backup
+    isTechnicallyValid: nearResistance,
     strategy: "POI Key Resistance Rejection (SELL)",
     commentary: `Penyusunan rencana trading berdasarkan batas Resistance harian terdekat ($${swingHigh.toFixed(2)}) sebagai POI aman untuk mengantisipasi penolakan jenuh.`,
     category: "FALLBACK"
@@ -705,6 +680,26 @@ function createNewLiveSignal(
 
   // Filter technically eligible candidates
   const validSetups = candidates.filter(c => c.isTechnicallyValid);
+
+  if (validSetups.length === 0) {
+    return {
+      id: `sig-perseus-live-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      symbol: "XAUUSD",
+      type: "BUY", // Placeholder
+      timeframe: "M15",
+      time: Date.now(),
+      entryPrice: currentClose,
+      stopLoss: currentClose,
+      takeProfit1: currentClose,
+      takeProfit2: currentClose,
+      takeProfit3: currentClose,
+      status: "WAITING",
+      pips: 0,
+      confidence: 0,
+      strategy: "SCANNING MARKET STRUCTURE...",
+      commentary: `[Sistem Kuantitatif Aktif] Tidak ada setup elite (SMC/VWAP/Fibo) dengan probabilitas tinggi yang terbentuk saat ini. Engine sedang melakukan kalibrasi dan menunggu formasi valid. Menghindari noise pasar.`,
+    };
+  }
 
   // ----------------------------------------------------
   // QUANT-BASED RATING & COGNITIVE SCORING SYSTEM
@@ -1046,9 +1041,17 @@ async function _processPerseusMarketDataInternal(forceBypassCache = false): Prom
     // ----------------------------------------------------
 
     if (activeLiveSignal.id === "sig-perseus-initial" || activeLiveSignal.status !== "ACTIVE") {
+      const prevStatus = activeLiveSignal.status;
       activeLiveSignal = createNewLiveSignal(priceQuote, candlestickSeries, computedQuant);
-      await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
-      console.log(`[Perseus Core] Generated locked active signal setup. Type: ${activeLiveSignal.type}, Entry: ${activeLiveSignal.entryPrice}, SL: ${activeLiveSignal.stopLoss}`);
+      
+      // Only spam the DB if we actually found a setup, or periodically if waiting
+      if (activeLiveSignal.status === "ACTIVE" || prevStatus !== "WAITING" || Math.random() < 0.1) {
+        await saveSignalsToDB(activeLiveSignal, activeHistorySignals);
+      }
+      
+      if (activeLiveSignal.status === "ACTIVE") {
+        console.log(`[Perseus Core] Generated locked active signal setup. Type: ${activeLiveSignal.type}, Entry: ${activeLiveSignal.entryPrice}, SL: ${activeLiveSignal.stopLoss}`);
+      }
     } else {
       let isClosed = false;
       let closeStatus: "WIN" | "WIN_TP1" | "LOSS" | "INVALID" = "LOSS";
